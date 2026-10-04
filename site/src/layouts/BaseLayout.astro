@@ -1,0 +1,37 @@
+---
+import '../styles/global.css';
+
+interface Props {
+  title: string;
+  description?: string;
+}
+
+const {
+  title,
+  description = '从真实源代码出发理解 Multica',
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width" />
+    <meta name="description" content={description} />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>海</text></svg>" />
+    <title>{title}</title>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="/">Multica Learning</a>
+      <nav aria-label="主导航">
+        <a href="/">首页</a>
+        <a href="/learn/getting-started">学习示例</a>
+      </nav>
+    </header>
+    <main>
+      <slot />
+    </main>
+    <footer>以源代码为依据，循序理解 Multica。</footer>
+  </body>
+</html>
