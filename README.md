@@ -1,2 +1,3 @@
 # multica-learning
-A source-code learning guide for the Multica project.
+
+This repository will become a source-code learning guide for the Multica project.
