@@ -21,13 +21,13 @@ description: 沿真实源码理解一次 Issue 分配如何成为持久任务、
 读完后，你应该能回答四个问题：
 
 1. Issue 的 assignee 变化，在哪里变成一次可执行的 `Run`？
-2. WebSocket 已经通知了 daemon，为什么还要轮询和数据库 claim？
+2. WebSocket（daemon 与服务端之间可双向主动发送消息的长连接传输通道）已经通知了 daemon，为什么还要轮询和数据库 claim？
 3. daemon 如何从“发现任务”走到“在本机启动 Codex”？
 4. task 的 `completed` 与 Issue 的 `done` 为什么不是一回事？
 
 ## 为什么需要这个机制
 
-服务端知道“应该运行一次 Agent”，但真正具备仓库、凭据和 Coding Agent 可执行文件的，通常是用户机器。两边还会遇到网络断开、重复唤醒、并发 worker 和本地容量有限等现实问题。
+服务端知道“应该运行一次 Agent”，但真正具备仓库、凭据和 Coding Agent 可执行文件的，通常是用户机器。两边还会遇到网络断开、重复唤醒、并发 worker（竞争领取工作的执行者）和本地容量有限等现实问题。
 
 如果只发送一条即时消息：“现在执行这个 Issue”，消息一旦丢失，任务也可能随之消失；如果两个 worker 同时收到消息，又可能重复执行。因此系统需要同时解决两件事：
 
@@ -93,7 +93,7 @@ Coding Agent
 | `server/internal/daemon/daemon.go` | `(*Daemon).handleTask`, `(*Daemon).runTask` | 准备环境、确认 start、调用 provider |
 | `server/pkg/agent/agent.go` | `Backend`, `New`, `ExecOptions` | 定义统一 provider 执行边界 |
 | `server/pkg/agent/builtin_runtimes.go` | `ResolveBackend` | 将 runtime/provider 配置解析成 backend |
-| `server/pkg/agent/codex.go` | `codexBackend.Execute`, `buildCodexArgs` | 启动 Codex 并通过 stdio 上的 JSON-RPC 通信 |
+| `server/pkg/agent/codex.go` | `codexBackend.Execute`, `buildCodexArgs` | 启动 Codex，并以 JSON-RPC（在本章 Codex 路径中，通过 stdin/stdout 承载结构化请求、响应与通知的协议）通信 |
 | `server/internal/daemon/daemon.go` | `(*Daemon).executeAndDrain`, `(*Daemon).reportTaskResult` | 回传消息、进度和终态 |
 
 ## 主调用链
@@ -144,9 +144,9 @@ queued → dispatched
 
 已有 Issue 的规范入口是 `PUT /api/issues/{id}`。`(*Handler).UpdateIssue` 先保存 assignee 字段，再计算 `assigneeChanged`，然后调用 `(*IssueService).WillEnqueueRun`。
 
-`WillEnqueueRun` 是触发条件的集中判断点。研究已验证，它会排除没有 assignee、处于 `backlog`、Agent 没有可用 runtime、Agent 已归档以及若干访问与自循环条件。`suppress_run` 还允许“只分配、不启动”。
+`WillEnqueueRun` 是触发条件的集中判断点。研究已验证，它会排除没有 assignee、处于 `backlog`、Agent 未绑定 runtime、Agent 已归档以及若干访问与自循环条件。`suppress_run` 还允许“只分配、不启动”。
 
-所以准确说法是：**一次满足触发条件的分配会创建任务**，而不是“任何 assignee 字段变化都会运行 Agent”。本章之后只沿满足条件的直接 Agent 分配继续。
+所以准确说法是：**一次满足触发条件的分配会尝试入队；在普通且没有重复 pending task 的路径中，会创建新的任务记录**，而不是“任何 assignee 字段变化都会运行 Agent”。本章之后只沿满足条件的直接 Agent 分配继续。
 
 ### 2. `queued` 是 durable state
 
