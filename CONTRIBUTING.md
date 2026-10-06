@@ -27,3 +27,14 @@ npm run build
 ```
 
 提交拉取请求前应确认构建成功。
+
+## 持续集成
+
+拉取请求及推送到 `main` 时，GitHub Actions 会在 Node.js 24 上执行：
+
+```bash
+cd site
+npm ci
+npm run check
+npm run build
+```
