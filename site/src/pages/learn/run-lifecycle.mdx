@@ -54,7 +54,7 @@ Coding Agent
 
 - **Issue**：要处理的协作对象。
 - **Run**：针对某个 Issue 的一次 Agent 执行，是产品概念。
-- **Runtime**：Agent 所绑定的执行配置与机器侧环境。
+- **Runtime**：Agent 所绑定的本地执行端与运行时配置；具体任务使用的工作目录和执行环境由 daemon 后续准备。
 - **Daemon**：连接 Multica 服务端编排与用户机器的本地执行面进程。
 - **Coding Agent**：最终实际工作的工具，例如 Codex。
 
@@ -331,10 +331,11 @@ Codex 子进程通过 stdin/stdout 上的 JSON-RPC 2.0 与 backend 通信。到�
 ```text
 task/run lifecycle: queued → dispatched → running → completed | failed
 
-Issue workflow:     todo → in_progress → in_review → done
+Issue workflow（常见流程示意）:
+                    todo → in_progress → in_review → done
 ```
 
-它们服务于不同对象。task 的 `completed` 表示这次执行结束，**不会机械地把 Issue 改成 `done`**。Coding Agent 会按工作流通过 CLI 更新 Issue；最终验收仍属于 Issue 协作流程。
+它们服务于不同对象。Issue workflow 可以存在其他或自定义状态；这里的重点只是说明它与 task/run lifecycle 属于两套独立状态，本章不展开自定义状态机制。task 的 `completed` 表示这次执行结束，**不会机械地把 Issue 改成 `done`**。Coding Agent 会按工作流通过 CLI 更新 Issue；最终验收仍属于 Issue 协作流程。
 
 ### `waiting_local_directory` 不是主路径必经状态
 
