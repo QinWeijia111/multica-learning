@@ -126,10 +126,150 @@ footer {
   font-size: 0.9rem;
 }
 
+.chapter {
+  max-width: 760px;
+  margin-inline: auto;
+  color: #24312e;
+  font-size: 1.02rem;
+  line-height: 1.8;
+}
+
+.chapter h1 {
+  max-width: 18ch;
+  margin-bottom: 2rem;
+  font-size: clamp(2.4rem, 7vw, 4.6rem);
+}
+
+.chapter h2 {
+  margin-block: 4rem 1.25rem;
+  color: #14201f;
+  font-size: clamp(1.65rem, 4vw, 2.2rem);
+  line-height: 1.25;
+  letter-spacing: -0.025em;
+}
+
+.chapter h3 {
+  margin-block: 2.5rem 0.75rem;
+  color: #234a42;
+  font-size: 1.28rem;
+}
+
+.chapter h4 {
+  margin-block: 2rem 0.5rem;
+  color: #325e54;
+  font-size: 1.08rem;
+}
+
+.chapter p,
+.chapter li {
+  max-width: 72ch;
+}
+
+.chapter li + li {
+  margin-top: 0.45rem;
+}
+
+.chapter blockquote {
+  margin: 2rem 0;
+  padding: 1rem 1.25rem;
+  border-left: 4px solid #b0502b;
+  color: #354b46;
+  background: #fff8f2;
+  font-size: 1.15rem;
+}
+
+.chapter blockquote p {
+  margin: 0;
+}
+
+.chapter pre {
+  overflow-x: auto;
+  margin-block: 1.5rem;
+  padding: 1.1rem 1.25rem;
+  border: 1px solid #ccd8d2;
+  border-radius: 0.5rem;
+  background: #13211e;
+  color: #edf5f1;
+  font-size: 0.9rem;
+  line-height: 1.65;
+}
+
+.chapter :not(pre) > code {
+  padding: 0.12em 0.35em;
+  border-radius: 0.25rem;
+  background: #e5ece8;
+  color: #204f45;
+  font-size: 0.9em;
+}
+
+.chapter table {
+  display: block;
+  overflow-x: auto;
+  width: 100%;
+  margin-block: 1.5rem;
+  border-collapse: collapse;
+  font-size: 0.94rem;
+}
+
+.chapter th,
+.chapter td {
+  min-width: 10rem;
+  padding: 0.75rem;
+  border: 1px solid #c5d2cd;
+  text-align: left;
+  vertical-align: top;
+}
+
+.chapter th {
+  background: #e7efeb;
+}
+
+.concept-contrast {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 1rem;
+  align-items: center;
+  margin-block: 2rem;
+}
+
+.concept-contrast > div:not(.not-equal) {
+  display: grid;
+  gap: 0.4rem;
+  min-height: 9rem;
+  padding: 1.1rem;
+  border: 1px solid #c5d2cd;
+  border-radius: 0.5rem;
+  background: #fff;
+}
+
+.concept-contrast strong {
+  color: #275f53;
+  font-size: 1.08rem;
+}
+
+.concept-contrast span {
+  color: #52645f;
+}
+
+.not-equal {
+  color: #b0502b;
+  font-size: 2rem;
+  font-weight: 800;
+}
+
 @media (max-width: 560px) {
   .site-header,
   .actions {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .concept-contrast {
+    grid-template-columns: 1fr;
+  }
+
+  .not-equal {
+    justify-self: center;
+    transform: rotate(90deg);
   }
 }
