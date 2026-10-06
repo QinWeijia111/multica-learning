@@ -9,6 +9,7 @@ Multica Learning 是一个以真实源代码为依据的中文学习项目，用
 - `site/`：Astro、React 与 MDX 构建的学习网站
 - `research/`：源码研究、调用链分析和实验记录
 - `sources/`：上游版本、源码映射和章节关联信息
+- `skills/`：经版本控制、可审查并可复用的 Agent 工作方法
 - `.github/`：GitHub 协作配置的预留目录
 
 ## 快速开始
