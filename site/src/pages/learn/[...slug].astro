@@ -1,0 +1,30 @@
+---
+import { getCollection, render, type CollectionEntry } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import ChapterLayout from '../../layouts/ChapterLayout.astro';
+import { calculateReadingStats } from '../../utils/readingStats';
+
+export async function getStaticPaths() {
+  const chapters = await getCollection('tutorials');
+
+  return chapters.map((chapter) => ({
+    params: { slug: chapter.data.slug },
+    props: { chapter, chapters },
+  }));
+}
+
+interface Props {
+  chapter: CollectionEntry<'tutorials'>;
+  chapters: CollectionEntry<'tutorials'>[];
+}
+
+const { chapter, chapters } = Astro.props;
+const { Content, headings } = await render(chapter);
+const stats = calculateReadingStats(chapter.body ?? '');
+---
+
+<BaseLayout title={`${chapter.data.title} · Multica Learning`} description={chapter.data.description} mainClass="chapter-main">
+  <ChapterLayout {chapter} {chapters} {headings} {stats}>
+    <Content />
+  </ChapterLayout>
+</BaseLayout>

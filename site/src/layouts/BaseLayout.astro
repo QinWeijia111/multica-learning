@@ -4,11 +4,13 @@ import '../styles/global.css';
 interface Props {
   title: string;
   description?: string;
+  mainClass?: string;
 }
 
 const {
   title,
   description = '从真实源代码出发理解 Multica',
+  mainClass,
 } = Astro.props;
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
@@ -26,6 +28,7 @@ const tutorialUrl = `${basePath}/learn/run-lifecycle/`;
     <title>{title}</title>
   </head>
   <body>
+    <a class="skip-link" href="#main-content">跳到正文</a>
     <header class="site-header">
       <a class="brand" href={homeUrl}>Multica Learning</a>
       <nav aria-label="主导航">
@@ -33,7 +36,7 @@ const tutorialUrl = `${basePath}/learn/run-lifecycle/`;
         <a href={tutorialUrl}>源码教程</a>
       </nav>
     </header>
-    <main>
+    <main id="main-content" class={mainClass}>
       <slot />
     </main>
     <footer>以源代码为依据，循序理解 Multica。</footer>
