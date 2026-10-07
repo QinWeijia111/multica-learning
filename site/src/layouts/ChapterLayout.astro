@@ -145,6 +145,12 @@ const chapterUrl = (slug: string) => `${basePath}/learn/${slug}/`;
 </div>
 
 <script>
+  document.querySelectorAll<HTMLElement>('pre.mermaid').forEach((diagram) => {
+    diagram.tabIndex = 0;
+    diagram.setAttribute('role', 'group');
+    diagram.setAttribute('aria-label', 'Mermaid 技术图；内容超出时可横向滚动');
+  });
+
   const article = document.querySelector<HTMLElement>('[data-chapter-article]');
   const progress = document.querySelector<HTMLElement>('[data-reading-progress]');
 
