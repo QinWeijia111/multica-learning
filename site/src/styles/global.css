@@ -498,6 +498,56 @@ footer {
   overscroll-behavior-inline: contain;
 }
 
+.chapter-body pre.mermaid {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+  width: 100%;
+  min-height: 12.5rem;
+  margin-block: 2rem;
+  padding: clamp(1rem, 4vw, 2rem);
+  border: 1px solid #c5d2cd;
+  border-radius: 0.4rem;
+  background: #f1f4ef;
+  color: #354b46;
+  font-size: 0.78rem;
+  line-height: 1.6;
+  white-space: pre;
+  overscroll-behavior-inline: contain;
+}
+
+.chapter-body pre.mermaid[data-processed] {
+  min-height: auto;
+  background: #f8faf6;
+}
+
+.chapter-body pre.mermaid svg {
+  display: block;
+  flex: 0 1 auto;
+  max-width: 100%;
+  height: auto;
+  margin-inline: auto;
+}
+
+.chapter-body pre.mermaid > div {
+  max-width: 100%;
+  border-color: var(--orange) !important;
+  color: var(--orange) !important;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.chapter-body figure[data-wide] > pre.mermaid {
+  justify-content: flex-start;
+}
+
+.chapter-body figure[data-wide] > pre.mermaid svg {
+  flex: 0 0 auto;
+  min-width: 44rem;
+  max-width: none;
+}
+
 .chapter-body :not(pre) > code {
   padding: 0.12em 0.35em;
   border-radius: 0.22rem;
@@ -694,5 +744,9 @@ footer {
 
   .reading-progress span {
     transition: none;
+  }
+
+  .chapter-body pre.mermaid:not([data-processed]) {
+    animation: none;
   }
 }
