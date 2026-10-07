@@ -40,17 +40,19 @@ researchArtifact: research/run-lifecycle/research-note.md
 
 下面是本章使用的**小型概念模型**，不是源码类型图：
 
-```text
-Issue
-  ↓ 分配给 Agent，并触发一次执行
-Run
-  ↓ 绑定到 Agent 使用的执行环境
-Runtime
-  ↓ 由本地执行面承接
-Daemon
-  ↓ 启动具体工具
-Coding Agent
+<figure>
+
+```mermaid
+flowchart TD
+    issue[Issue] -->|分配给 Agent，并触发一次执行| run[Run]
+    run -->|绑定到 Agent 使用的执行环境| runtime[Runtime]
+    runtime -->|由本地执行面承接| daemon[Daemon]
+    daemon -->|启动具体工具| codingAgent[Coding Agent]
 ```
+
+<figcaption><strong>CONCEPTUAL · 概念模型：</strong>这张图只帮助初学者连接 Issue、Run、Runtime、Daemon 与 Coding Agent；这些节点不都对应同名源码类型。</figcaption>
+
+</figure>
 
 - **Issue**：要处理的协作对象。
 - **Run**：针对某个 Issue 的一次 Agent 执行，是产品概念。
@@ -122,19 +124,21 @@ PUT /api/issues/{id}
   → completed 或 failed
 ```
 
-把它压缩成最关键的可靠性交接，就是：
+把它压缩成最关键的可靠性交接，就是下面这张图。周期 polling 与 wakeup 都只促使 daemon 检查工作；它们不会授予所有权。
 
-```text
-Server writes durable queued state
-        ↓
-best-effort wakeup
-        ↓
-Daemon checks for work
-        ↓
-authoritative claim
-        ↓
-queued → dispatched
+<figure>
+
+```mermaid
+flowchart TD
+    queued["agent_task_queue<br/>status = queued"] -->|持久化后通知| wake["NotifyTaskAvailable<br/>best-effort wakeup"]
+    wake -->|提示尽快检查| check[daemon 检查可领取工作]
+    poll[周期 polling] -->|漏通知时仍会检查| check
+    check -->|"tasks.claim：WS RPC 优先，HTTP 回退"| claim["ClaimAgentTask<br/>queued → dispatched"]
 ```
+
+<figcaption><strong>IMPLEMENTATION · 可靠性交接：</strong>持久化的 <code>queued</code> 状态先于 best-effort wakeup；polling 提供漏通知时的发现路径，只有服务端 <code>ClaimAgentTask</code> 成功完成 <code>queued → dispatched</code> 才形成任务所有权。</figcaption>
+
+</figure>
 
 顺序很重要：先有可恢复的数据库事实，再用通知加速发现，最后以 claim 决定所有权。
 
@@ -239,11 +243,22 @@ claim 返回任务后，`(*Daemon).handleTask` 根据任务的 `RuntimeID` 在�
 
 主路径的状态迁移是：
 
-```text
-queued ──claim──> dispatched ──start──> running
-                                           ├──> completed
-                                           └──> failed
+<figure>
+
+```mermaid
+stateDiagram-v2
+    [*] --> queued: CreateAgentTask
+    queued --> dispatched: ClaimAgentTask
+    dispatched --> running: StartTaskForClaim（本地准备后）
+    running --> completed: CompleteTaskWithTransition
+    running --> failed: FailTaskWithTransition
+    completed --> [*]
+    failed --> [*]
 ```
+
+<figcaption><strong>IMPLEMENTATION · 主路径状态机：</strong>普通直接分配从 <code>queued</code> 开始；claim 建立 <code>dispatched</code> 所有权，本地准备和 start 成功后才进入 <code>running</code>，最后到达 <code>completed</code> 或 <code>failed</code>。图中有意不把可选状态画成必经步骤。<code>[*]</code> 仅是 Mermaid 的图示起点/终点，不是 Multica task 状态，也不表示终态之后还有一次数据库状态迁移。</figcaption>
+
+</figure>
 
 这里的 state transition（状态迁移）不是日志文字，而是任务生命周期事实。不同操作只允许从特定前置状态走向下一个状态。
 
