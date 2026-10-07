@@ -1,6 +1,9 @@
 ---
 import ProjectStatus from '../components/ProjectStatus';
 import BaseLayout from '../layouts/BaseLayout.astro';
+
+const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
+const tutorialUrl = `${basePath}/learn/run-lifecycle/`;
 ---
 
 <BaseLayout title="Multica Learning">
@@ -11,7 +14,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       面向中文读者的 Multica 架构与实现学习指南。所有技术解释都将回到真实代码、调用链与可验证的实验。
     </p>
     <div class="actions">
-      <a class="button" href="/learn/run-lifecycle">阅读首篇源码教程</a>
+      <a class="button" href={tutorialUrl}>阅读首篇源码教程</a>
       <a class="text-link" href="https://github.com/QinWeijia111/multica-learning">浏览仓库</a>
     </div>
   </section>
