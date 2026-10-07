@@ -1,0 +1,196 @@
+---
+import type { MarkdownHeading } from 'astro';
+import type { CollectionEntry } from 'astro:content';
+import type { ReadingStats } from '../utils/readingStats';
+
+interface Props {
+  chapter: CollectionEntry<'tutorials'>;
+  chapters: CollectionEntry<'tutorials'>[];
+  headings: MarkdownHeading[];
+  stats: ReadingStats;
+}
+
+const { chapter, chapters, headings, stats } = Astro.props;
+const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
+const orderedChapters = [...chapters].sort((a, b) => a.data.order - b.data.order);
+const chapterIndex = orderedChapters.findIndex(({ id }) => id === chapter.id);
+const previous = chapterIndex > 0 ? orderedChapters[chapterIndex - 1] : undefined;
+const next = chapterIndex < orderedChapters.length - 1 ? orderedChapters[chapterIndex + 1] : undefined;
+const outline = headings.filter(({ depth }) => depth === 2 || depth === 3);
+const chapterUrl = (slug: string) => `${basePath}/learn/${slug}/`;
+---
+
+<div class="reading-progress" aria-hidden="true">
+  <span data-reading-progress></span>
+</div>
+
+<div class="chapter-shell">
+  <aside class="chapter-rail chapter-rail--left" aria-label="源码学习目录">
+    <div class="chapter-rail__inner">
+      <p class="rail-label">LEARNING PATH</p>
+      <h2>源码学习目录</h2>
+      <nav class="chapter-list" aria-label="已发布章节">
+        {
+          orderedChapters.map((item) => (
+            <a
+              href={chapterUrl(item.data.slug)}
+              class:list={['chapter-list__item', { 'is-current': item.id === chapter.id }]}
+              aria-current={item.id === chapter.id ? 'page' : undefined}
+            >
+              <span>{item.data.module}</span>
+              <strong>{item.data.title}</strong>
+            </a>
+          ))
+        }
+      </nav>
+    </div>
+  </aside>
+
+  <div class="chapter-center">
+    <div class="chapter-mobile-tools" aria-label="章节辅助导航">
+      <details class="mobile-chapter-nav">
+        <summary>源码学习目录 <span>{orderedChapters.length} 章</span></summary>
+        <nav class="chapter-list" aria-label="移动端已发布章节">
+          {
+            orderedChapters.map((item) => (
+              <a
+                href={chapterUrl(item.data.slug)}
+                class:list={['chapter-list__item', { 'is-current': item.id === chapter.id }]}
+                aria-current={item.id === chapter.id ? 'page' : undefined}
+              >
+                <span>{item.data.module}</span>
+                <strong>{item.data.title}</strong>
+              </a>
+            ))
+          }
+        </nav>
+      </details>
+      {
+        outline.length > 0 && (
+          <details class="mobile-outline">
+            <summary>本页大纲 <span>{outline.length} 节</span></summary>
+            <nav class="outline-list" aria-label="移动端本页大纲">
+              {outline.map((heading) => (
+                <a href={`#${heading.slug}`} data-depth={heading.depth}>{heading.text}</a>
+              ))}
+            </nav>
+          </details>
+        )
+      }
+    </div>
+
+    <article class="chapter" data-chapter-article aria-labelledby="chapter-title">
+      <header class="chapter-header">
+        <div class="chapter-kicker">
+          <span>{chapter.data.module}</span>
+          {chapter.data.group && <span>{chapter.data.group}</span>}
+        </div>
+        <h1 id="chapter-title">{chapter.data.title}</h1>
+        <p class="chapter-description">{chapter.data.description}</p>
+        <p class="reading-stats" aria-label={`${stats.proseUnits.toLocaleString('zh-CN')} 字，含 ${stats.codeLines} 行代码，约 ${stats.minutes} 分钟`}>
+          <span>{stats.proseUnits.toLocaleString('zh-CN')} 字</span>
+          <span>含 {stats.codeLines} 行代码</span>
+          <span>约 {stats.minutes} 分钟</span>
+        </p>
+        <dl class="source-provenance">
+          <div>
+            <dt>上游基线</dt>
+            <dd><code>{chapter.data.upstreamRepository}@{chapter.data.upstreamCommit.slice(0, 12)}</code></dd>
+          </div>
+          <div>
+            <dt>研究依据</dt>
+            <dd><code>{chapter.data.researchArtifact}</code></dd>
+          </div>
+        </dl>
+      </header>
+
+      <div class="chapter-body">
+        <slot />
+      </div>
+
+      {(previous || next) && (
+        <nav class="chapter-pagination" aria-label="相邻章节">
+          {previous && (
+            <a href={chapterUrl(previous.data.slug)} rel="prev">
+              <span>上一篇</span>
+              <strong>{previous.data.title}</strong>
+            </a>
+          )}
+          {next && (
+            <a href={chapterUrl(next.data.slug)} rel="next" class="chapter-pagination__next">
+              <span>下一篇</span>
+              <strong>{next.data.title}</strong>
+            </a>
+          )}
+        </nav>
+      )}
+    </article>
+  </div>
+
+  <aside class="chapter-rail chapter-rail--right" aria-label="本页大纲">
+    <div class="chapter-rail__inner">
+      <p class="rail-label">ON THIS PAGE</p>
+      <h2>本页大纲</h2>
+      <nav class="outline-list" aria-label="文章章节">
+        {
+          outline.map((heading) => (
+            <a href={`#${heading.slug}`} data-depth={heading.depth} data-outline-link={heading.slug}>
+              {heading.text}
+            </a>
+          ))
+        }
+      </nav>
+    </div>
+  </aside>
+</div>
+
+<script>
+  const article = document.querySelector<HTMLElement>('[data-chapter-article]');
+  const progress = document.querySelector<HTMLElement>('[data-reading-progress]');
+
+  if (article && progress) {
+    let frame = 0;
+    const updateProgress = () => {
+      const rect = article.getBoundingClientRect();
+      const articleTop = rect.top + window.scrollY;
+      const articleBottom = rect.bottom + window.scrollY;
+      const start = articleTop - window.innerHeight * 0.15;
+      const end = articleBottom - window.innerHeight * 0.85;
+      const value = Math.min(1, Math.max(0, (window.scrollY - start) / Math.max(1, end - start)));
+      progress.style.setProperty('--reading-progress', value.toString());
+      frame = 0;
+    };
+    const requestUpdate = () => {
+      if (!frame) frame = window.requestAnimationFrame(updateProgress);
+    };
+    updateProgress();
+    window.addEventListener('scroll', requestUpdate, { passive: true });
+    window.addEventListener('resize', requestUpdate);
+  }
+
+  const outlineLinks = [...document.querySelectorAll<HTMLAnchorElement>('[data-outline-link]')];
+  const sectionHeadings = outlineLinks
+    .map((link) => document.getElementById(link.dataset.outlineLink ?? ''))
+    .filter((heading): heading is HTMLElement => Boolean(heading));
+
+  const setCurrentSection = (id: string) => {
+    outlineLinks.forEach((link) => {
+      const current = link.dataset.outlineLink === id;
+      link.classList.toggle('is-current', current);
+      if (current) link.setAttribute('aria-current', 'location');
+      else link.removeAttribute('aria-current');
+    });
+  };
+
+  if (sectionHeadings.length > 0 && 'IntersectionObserver' in window) {
+    setCurrentSection(sectionHeadings[0].id);
+    const observer = new IntersectionObserver((entries) => {
+      const visible = entries.filter((entry) => entry.isIntersecting);
+      if (visible.length > 0) {
+        visible.sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+        setCurrentSection(visible[0].target.id);
+      }
+    }, { rootMargin: '-16% 0px -72% 0px', threshold: 0 });
+    sectionHeadings.forEach((heading) => observer.observe(heading));
+  }
+</script>
