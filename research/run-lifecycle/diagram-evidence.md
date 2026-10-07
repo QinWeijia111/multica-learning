@@ -114,11 +114,12 @@
 
 ### Edge evidence
 
-- `[*] → queued`：`CreateAgentTask` 插入；Finding F。
+- `[*] → queued`：`[*]` 是 Mermaid 起点记号；真正被源码验证的事实是 `CreateAgentTask` 将普通直接分配任务的首个持久状态写为 `queued`。不把 `[*]` 视为 Multica 状态。
 - `queued → dispatched`：`ClaimAgentTask` 原子 claim；Finding F。
 - `dispatched → running`：`StartAgentTask` / `StartTaskForClaim`，且 Finding D.3–D.4 证明本地准备先于 start；图使用服务层 symbol `StartTaskForClaim`。
 - `running → completed`：`CompleteAgentTask` 位于 `CompleteTaskWithTransition` 中；Finding F。
 - `running → failed`：`FailAgentTask` 位于 `FailTaskWithTransition` 中；Finding F。
+- `completed → [*]` / `failed → [*]`：两条边仅表示 Mermaid 图示结束，不表示 Multica 在 `completed` 或 `failed` 之后执行了额外数据库状态迁移。
 
 ### Preserved uncertainty
 

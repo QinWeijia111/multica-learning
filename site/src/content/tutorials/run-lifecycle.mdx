@@ -256,7 +256,7 @@ stateDiagram-v2
     failed --> [*]
 ```
 
-<figcaption><strong>IMPLEMENTATION · 主路径状态机：</strong>普通直接分配从 <code>queued</code> 开始；claim 建立 <code>dispatched</code> 所有权，本地准备和 start 成功后才进入 <code>running</code>，最后到达 <code>completed</code> 或 <code>failed</code>。图中有意不把可选状态画成必经步骤。</figcaption>
+<figcaption><strong>IMPLEMENTATION · 主路径状态机：</strong>普通直接分配从 <code>queued</code> 开始；claim 建立 <code>dispatched</code> 所有权，本地准备和 start 成功后才进入 <code>running</code>，最后到达 <code>completed</code> 或 <code>failed</code>。图中有意不把可选状态画成必经步骤。<code>[*]</code> 仅是 Mermaid 的图示起点/终点，不是 Multica task 状态，也不表示终态之后还有一次数据库状态迁移。</figcaption>
 
 </figure>
 
