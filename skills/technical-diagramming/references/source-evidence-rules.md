@@ -28,13 +28,12 @@ SOURCE 2：证明组件 B 存在。
 - **顺序**：sequence diagram 中的先后是否有 call chain 或事件证据；
 - **转换**：state diagram 的事件、guard 与目标状态是否由实现支持。
 
-## 概念图与实现图
+## 教学图与实现图
 
-允许使用 `CONCEPTUAL` 图建立心智模型，但必须在图附近明确标注。概念节点无需逐一
-对应源码 symbol，也不能在没有说明的情况下与真实 function、table 或 API 混用。
+允许使用 `TEACHING` 图建立心智模型或解释语义阶段，但必须在图附近明确标注。教学节点无需逐一对应源码 symbol，也不能在没有说明的情况下与真实 function、table 或 API 混用。教学图可以合并不影响当前结论的实现步骤，但角色、方向、状态与因果仍须与研究一致，并在邻近正文说明重要抽象。
 
 `IMPLEMENTATION` 图必须使用当前 commit 下准确的源码术语，并保存对关键节点和边的
-证据引用。概念图不能作为实现关系的 SOURCE 证据。
+证据引用。教学图不能作为实现关系的 SOURCE 证据。
 
 ## 保留不确定性
 
@@ -53,7 +52,7 @@ Research Note 的 Open Questions 是图示边界。除非新增研究解决并�
 
 - Research artifact 路径；
 - upstream repository 与完整 commit SHA；
-- 支持节点的 file、symbol 或状态定义；
+- 支持节点的 file、symbol 或状态定义；教学图另记节点代表的架构含义；
 - 支持边的 call site、transition、协议、数据操作或实验；
 - 仍保留的 Open Questions / `INFERENCE`；
 - 证据与图不一致时的 reviewer verdict。
