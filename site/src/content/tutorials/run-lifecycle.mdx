@@ -2,7 +2,7 @@
 slug: run-lifecycle
 module: M01
 title: 从 Issue 分配到本地 Codex 执行
-description: 沿真实源码理解一次 Issue 分配如何成为持久任务、被本地 daemon 认领，并最终启动 Codex。
+description: 先看懂 Multica 的协调端与本地执行端，再沿一项工作理解持久化、通知、认领、环境准备和 Codex 启动。
 order: 1
 group: 运行生命周期
 upstreamRepository: multica-ai/multica
@@ -12,236 +12,192 @@ researchArtifact: research/run-lifecycle/research-note.md
 
 > 我只是在 Multica 中把一个 Issue 分配给 Agent，为什么几秒之后，我的 Mac 上就真的开始运行 Codex 了？
 
-这不是一次从浏览器直接发往 Codex 的“远程点击”。中间至少发生了三类交接：服务端先把执行意图写成持久任务，本地 daemon 再从服务端认领任务，最后 provider 层才启动具体的 Coding Agent 进程。
+短答案是：**Multica Server 把这次执行先保存成一项不会随网络消息消失的工作，再提醒你的 Mac；Mac 上的 Daemon 领取工作、准备仓库与运行环境，最后才通过 provider 边界启动 Codex。**
 
-本章只讲已经由源码研究验证的主路径。对应上游基线固定为 `multica-ai/multica@b4ca5b4a23e68b26292a680dca7689a952bb1cd5`。
+所以，这不是浏览器隔着网络“遥控 Codex”。它是一场跨越服务端、数据库、本地进程和 Coding Agent 的接力。本章会先看整台机器，再跟随一项工作走完全程，最后才进入函数名与源码路径。
 
-## 本章要解决的问题
+本章只讲研究已经验证的普通直接分配主路径。上游基线固定为 `multica-ai/multica@b4ca5b4a23e68b26292a680dca7689a952bb1cd5`。
 
-读完后，你应该能回答四个问题：
+## 先看整台机器
 
-1. Issue 的 assignee 变化，在哪里变成一次可执行的 `Run`？
-2. WebSocket（daemon 与服务端之间可双向主动发送消息的长连接传输通道）已经通知了 daemon，为什么还要轮询和数据库 claim？
-3. daemon 如何从“发现任务”走到“在本机启动 Codex”？
-4. task 的 `completed` 与 Issue 的 `done` 为什么不是一回事？
-
-## 为什么需要这个机制
-
-服务端知道“应该运行一次 Agent”，但真正具备仓库、凭据和 Coding Agent 可执行文件的，通常是用户机器。两边还会遇到网络断开、重复唤醒、并发 worker（竞争领取工作的执行者）和本地容量有限等现实问题。
-
-如果只发送一条即时消息：“现在执行这个 Issue”，消息一旦丢失，任务也可能随之消失；如果两个 worker 同时收到消息，又可能重复执行。因此系统需要同时解决两件事：
-
-- **把执行意图保存下来**：网络通知丢失后，工作仍然存在。
-- **明确谁获得执行权**：多个 worker 看见同一任务时，只有一个能成功认领。
-
-这就是后面反复出现的两个边界：durable state（持久状态）与 atomic claim（原子认领）。
-
-## 最小心智模型
-
-下面是本章使用的**小型概念模型**，不是源码类型图：
+先忽略源码名字，只看职责。下面是本章使用的**教学图**；图中的中文标签表达架构含义，不声称存在同名的源码类型。
 
 <figure>
 
 ```mermaid
 flowchart TD
-    issue[Issue] -->|分配给 Agent，并触发一次执行| run[Run]
-    run -->|绑定到 Agent 使用的执行环境| runtime[Runtime]
-    runtime -->|由本地执行面承接| daemon[Daemon]
-    daemon -->|启动具体工具| codingAgent[Coding Agent]
+    human["人 / Web<br/>分配工作、查看结果"]
+    server["Multica Server<br/>协调与持久状态"]
+    state[("PostgreSQL<br/>记住工作与生命周期")]
+    daemon["Local Daemon<br/>本地执行"]
+    adapter["Provider Adapter<br/>适配具体工具"]
+    agent["Coding Agent<br/>例如 Codex"]
+    files[("本地代码与文件")]
+
+    human -->|分配 Issue| server
+    server <-->|读写可靠事实| state
+    server -->|跨网络交付工作| daemon
+    daemon -->|准备工作环境| files
+    daemon -->|选择并调用| adapter
+    adapter -->|启动 Coding Agent| agent
+    agent -->|修改| files
+    daemon -->|回传过程与结果| server
 ```
 
-<figcaption><strong>CONCEPTUAL · 概念模型：</strong>这张图只帮助初学者连接 Issue、Run、Runtime、Daemon 与 Coding Agent；这些节点不都对应同名源码类型。</figcaption>
+<figcaption><strong>TEACHING · 最小架构图：</strong>Server 负责协调与持久状态；Daemon 和 Coding Agent 在本地机器上完成真正执行。读图时先记住这条边界，不必记函数名。</figcaption>
 
 </figure>
 
-- **Issue**：要处理的协作对象。
-- **Run**：针对某个 Issue 的一次 Agent 执行，是产品概念。
-- **Runtime**：Agent 所绑定的本地执行端与运行时配置；具体任务使用的工作目录和执行环境由 daemon 后续准备。
-- **Daemon**：连接 Multica 服务端编排与用户机器的本地执行面进程。
-- **Coding Agent**：最终实际工作的工具，例如 Codex。
+这张图里有三个最重要的角色：
 
-这些词不都对应同名源码符号。尤其是 `Run`：进入当前实现后，你会频繁看到的是 task，而不是一个名为 `Run` 的核心类型。
+- **Multica Server** 管“谁在做什么”：工作是否存在、交给哪个 Agent、执行走到哪个阶段，以及协作与调度记录。Server 不是 Coding Agent，也不会代替 Codex 修改你的仓库。
+- **持久状态（durable state）**让 Server 在网络通知丢失后仍记得工作存在。本章只需要知道这些事实保存在 PostgreSQL；数据库内部的更多设计不是本章主题。
+- **Local Daemon** 是用户机器上的执行侧进程。它连接服务端编排与本地仓库、文件、凭据和 Coding Agent 可执行文件。
 
-## 从概念模型走进 Multica 源码
+Multica 也不替代 Codex、Claude Code 或其他 Coding Agent。Daemon 先走到统一的 provider/backend 边界，再由具体适配器启动已配置的工具。真正被修改的代码始终位于执行侧的本地工作环境中。
 
-产品中的一次 `Run`，在这版实现中主要落到下面这组内部术语：
+## 一项工作怎样跑完全程
 
-| 产品概念 | 当前实现中的表示 | 阅读源码时的作用 |
-| --- | --- | --- |
-| Run | `agent_task_queue` 的一条记录 | 持久保存一次待执行或执行中的工作 |
-| Run 的 Go 数据模型 | `db.AgentTaskQueue` | 在服务端代码中承载任务字段 |
-| Run 的服务逻辑 | `TaskService` | 入队、认领、开始和终态转换 |
-| Run 标识 | `task_id` | 串联 daemon API、消息和最终结果 |
+假设你把一个普通 Issue 分配给一个已配置好 runtime 的 Agent，并选择开始执行。先不要看源码，整段旅程只有八步：
 
-因此，“创建一次 Run”在源码里不是实例化 `Run` 类，而是由 `TaskService` 创建一条 `agent_task_queue` 记录。它会保存 `agent_id`、`runtime_id`、`issue_id`、`status` 等字段。
-
-`runtime_id` 在入队时就从已分配 Agent 的当前绑定中确定并持久化。它不是等待任意机器来抢的通用队列；后续 claim 还会检查 Agent 是否仍绑定到该 runtime。
-
-## Source Map
-
-下面只列出回答本章问题所需的证据入口。所有条目均为 `SOURCE`，基于本章末尾注明的同一上游 commit。
-
-| 源码位置 | 关键 symbol | 本章关注点 |
-| --- | --- | --- |
-| `server/internal/handler/issue.go` | `(*Handler).UpdateIssue` | 保存 assignee 变化，并判断是否尝试触发 run |
-| `server/internal/service/issue_trigger.go` | `(*IssueService).WillEnqueueRun` | 判断当前分配是否满足入队条件 |
-| `server/internal/handler/issue_trigger.go` | `(*Handler).dispatchIssueRun` | 将直接 Agent 触发交给 task 入队路径 |
-| `server/internal/service/task.go` | `(*TaskService).enqueueIssueTaskWithCommentPlan` | 创建任务、发布 `task:queued`、通知 runtime |
-| `server/pkg/db/queries/agent.sql` | `CreateAgentTask` | 插入 `status='queued'` 的持久记录 |
-| `server/internal/daemonws/hub.go` | `(*Hub).NotifyTaskAvailable` | 发送 best-effort 的 `daemon:task_available` 提示 |
-| `server/internal/daemon/daemon.go` | `(*Daemon).pollLoop`, `(*Daemon).runBatchPoller` | 接收唤醒、周期检查、预留本地容量 |
-| `server/internal/daemon/wsrpc.go` | `(*Daemon).claimTasksWSFirst` | 优先通过 WebSocket RPC claim，必要时回退 HTTP |
-| `server/pkg/db/queries/agent.sql` | `ClaimAgentTask` | 原子执行 `queued → dispatched` |
-| `server/internal/daemon/daemon.go` | `(*Daemon).handleTask`, `(*Daemon).runTask` | 准备环境、确认 start、调用 provider |
-| `server/pkg/agent/agent.go` | `Backend`, `New`, `ExecOptions` | 定义统一 provider 执行边界 |
-| `server/pkg/agent/builtin_runtimes.go` | `ResolveBackend` | 将 runtime/provider 配置解析成 backend |
-| `server/pkg/agent/codex.go` | `codexBackend.Execute`, `buildCodexArgs` | 启动 Codex，并以 JSON-RPC（在本章 Codex 路径中，通过 stdin/stdout 承载结构化请求、响应与通知的协议）通信 |
-| `server/internal/daemon/daemon.go` | `(*Daemon).executeAndDrain`, `(*Daemon).reportTaskResult` | 回传消息、进度和终态 |
-
-## 主调用链
-
-先看 happy path 的全貌。下面是依据源码整理的**简化调用链**，箭头省略了参数校验与辅助调用：
-
-```text
-PUT /api/issues/{id}
-  → Handler.UpdateIssue
-  → IssueService.WillEnqueueRun
-  → Handler.dispatchIssueRun
-  → TaskService.EnqueueTaskForIssueWithHandoff
-  → CreateAgentTask(status = queued)
-  → NotifyTaskAvailable(runtime_id, task_id)
-  → daemon pollLoop / runBatchPoller
-  → claimTasksWSFirst
-  → TaskService.ClaimTasksForRuntimes
-  → ClaimAgentTask: queued → dispatched
-  → daemon handleTask / runTask
-  → execenv.Prepare 或复用已有环境
-  → StartTaskForClaim: dispatched → running
-  → agent.ResolveBackend(...).Execute(...)
-  → codex app-server --listen stdio://
-  → messages / progress 回传
-  → complete 或 fail
-  → completed 或 failed
-```
-
-把它压缩成最关键的可靠性交接，就是下面这张图。周期 polling 与 wakeup 都只促使 daemon 检查工作；它们不会授予所有权。
+1. 用户把 Issue 分配给 Agent。
+2. Server 把“需要执行这件事”保存成待执行任务。
+3. Server 提醒目标机器：有新工作可以检查。
+4. Daemon 被提醒，或在下一次主动检查时发现工作。
+5. Daemon 向 Server 请求领取；Server 成功确认后，它才获得执行权。
+6. Daemon 在本地预留容量，并准备仓库、工作目录和执行环境。
+7. Multica 根据 Agent 的 runtime/provider 配置启动 Codex。
+8. 执行消息、进度和最终结果经 Daemon 返回 Server。
 
 <figure>
 
 ```mermaid
 flowchart TD
-    queued["agent_task_queue<br/>status = queued"] -->|持久化后通知| wake["NotifyTaskAvailable<br/>best-effort wakeup"]
-    wake -->|提示尽快检查| check[daemon 检查可领取工作]
-    poll[周期 polling] -->|漏通知时仍会检查| check
-    check -->|"tasks.claim：WS RPC 优先，HTTP 回退"| claim["ClaimAgentTask<br/>queued → dispatched"]
+    assign["1. 分配 Issue"] --> save["2. 保存待执行任务"]
+    save --> notify["3. 提醒目标机器"]
+    notify --> discover["4. Daemon 发现工作"]
+    discover --> claim["5. Server 确认执行权"]
+    claim --> prepare["6. 准备本地执行环境"]
+    prepare --> launch["7. 启动 Coding Agent"]
+    launch --> report["8. 回传过程与结果"]
 ```
 
-<figcaption><strong>IMPLEMENTATION · 可靠性交接：</strong>持久化的 <code>queued</code> 状态先于 best-effort wakeup；polling 提供漏通知时的发现路径，只有服务端 <code>ClaimAgentTask</code> 成功完成 <code>queued → dispatched</code> 才形成任务所有权。</figcaption>
+<figcaption><strong>TEACHING · 端到端旅程：</strong>一项工作按“保存 → 通知 → 发现 → 领取 → 准备 → 执行 → 回传”跨过网络与进程边界；这是语义阶段图，不是函数调用链。</figcaption>
 
 </figure>
 
-顺序很重要：先有可恢复的数据库事实，再用通知加速发现，最后以 claim 决定所有权。
+这八步已经回答了开头的问题。接下来要解释的是：为什么不能少掉中间那些看似绕路的步骤？
 
-## 关键实现拆解
+## 为什么不能只发一条“RUN NOW”
 
-### 1. assignee 更新不总是等于立即执行
+最朴素的方案是：Server 给笔记本发送 `RUN NOW`，笔记本收到就启动 Codex。但真实环境里至少有五个问题：
 
-已有 Issue 的规范入口是 `PUT /api/issues/{id}`。`(*Handler).UpdateIssue` 先保存 assignee 字段，再计算 `assigneeChanged`，然后调用 `(*IssueService).WillEnqueueRun`。
+- 通知可能在断网或重连时丢失。
+- 机器可能暂时离线，但工作仍应保留。
+- 多个执行者可能几乎同时看到同一项工作。
+- 本地并发容量可能已经用满。
+- 一条瞬时通信和“一项工作确实存在”不是同一种事实。
 
-`WillEnqueueRun` 是触发条件的集中判断点。研究已验证，它会排除没有 assignee、处于 `backlog`、Agent 未绑定 runtime、Agent 已归档以及若干访问与自循环条件。`suppress_run` 还允许“只分配、不启动”。
+如果通知本身就是任务，通知丢了，任务也丢了；如果看到通知就算拥有任务，多个执行者可能重复启动。因此 Multica 把三件事拆开：**先记下来，再通知，再认领。**
 
-所以准确说法是：**一次满足触发条件的分配会尝试入队；在普通且没有重复 pending task 的路径中，会创建新的任务记录**，而不是“任何 assignee 字段变化都会运行 Agent”。本章之后只沿满足条件的直接 Agent 分配继续。
-
-### 2. `queued` 是 durable state
-
-`enqueueIssueTaskWithCommentPlan` 解析 Agent 当前绑定的 runtime，随后由 `CreateAgentTask` 在 `agent_task_queue` 中插入 `status='queued'` 的记录。
-
-下面是这一阶段的**概念性伪代码**，不是上游源码原文：
+下面的教学伪代码先暴露整体控制流。它不是 Multica 原始源码，也省略了校验、错误处理和兼容路径。
 
 ```text
-task = INSERT agent_task_queue(
-  agent_id,
-  runtime_id,
-  issue_id,
-  status = "queued",
-  ...
-)
+# 教学伪代码：不是 Multica 原始源码
 
-publish("task:queued", task)
-notifyRuntimeMayHaveWork(task.runtime_id, task.id)
+任务 = 保存待执行工作()
+提醒目标机器(任务)
+
+while Daemon 有可用容量:
+    任务 = 尝试领取工作()
+
+    if 没有领到:
+        等待通知或下一次检查
+        continue
+
+    准备本地执行环境(任务)
+    标记任务开始运行(任务)
+    启动已配置的 Coding Agent(任务)
+    回传过程与最终结果(任务)
 ```
 
-durable state 的含义是：任务事实写进持久化数据库，不依赖某条瞬时网络消息继续存在。即使随后的唤醒没有送达，daemon 仍能在下一次检查中发现这条 `queued` 记录。
+接下来每节只回答其中一个问题。
 
-这条记录还固定了目标 `runtime_id`。机器暂时离线不一定阻止入队，但实际 claim 时，runtime 必须处于 `online`，且心跳时间足够新鲜。
+## 为什么先保存，再通知？
 
-### 3. WebSocket wakeup 不是 task ownership
+Server 接受一次满足触发条件的分配后，会先创建一条状态为 `queued` 的持久任务。产品界面把一次 Agent 执行称为 **Run**；当前实现里却主要使用 task 术语：数据库表是 `agent_task_queue`，Go 模型是 `db.AgentTaskQueue`，贯穿 API 的标识是 `task_id`。源码中没有一个承担全局中心角色的 `Run` 类型。
 
-服务端持久化任务后，`notifyRuntimeMayHaveWork` 会先使 empty-claim cache 失效，再调用 `NotifyTaskAvailable`。后者向关注目标 runtime 的连接推送 `daemon:task_available`。
+这条任务会记录 `agent_id`、`runtime_id`、`issue_id` 和 `status` 等信息。`runtime_id` 来自 Agent 当时绑定的 runtime，因此它不是一条任意在线机器都能抢走的通用任务。机器暂时离线不一定阻止入队；真正领取时还会检查 runtime 是否在线、心跳是否足够新鲜，以及 Agent 是否仍绑定到它。
 
-这是一条 **best-effort wakeup**：尽力发送的“可能有活了”提示。它的价值是降低等待时间，但它不是队列本身，也没有把任务所有权交给接收者。
+先写入 `queued`，再发送提醒，意味着：即使后面的网络提醒没有送达，工作仍然存在。Daemon 以后还能从 Server 的持久事实中重新发现它。
 
-<div className="concept-contrast">
-  <div>
-    <strong>WebSocket wakeup</strong>
-    <span>提示 daemon 尽快检查</span>
-    <span>可能丢失或重复</span>
-    <span>不改变任务状态</span>
-  </div>
-  <div className="not-equal" aria-label="不等于">≠</div>
-  <div>
-    <strong>task ownership</strong>
-    <span>由服务端数据库 claim 决定</span>
-    <span>要求满足绑定与心跳条件</span>
-    <span>执行 `queued → dispatched`</span>
-  </div>
-</div>
+> 源码坐标：`server/internal/service/task.go` 的 `(*TaskService).enqueueIssueTaskWithCommentPlan` 组织入队；`server/pkg/db/queries/agent.sql` 的 `CreateAgentTask` 写入 `status='queued'`。
 
-这里还有一个容易混淆的细节：WebSocket 也可以承载后续的 `tasks.claim` RPC。**承载 claim 请求的传输通道**与**前面的 task-available 唤醒事件**仍是两件事。所有权来自服务端成功完成 claim，不来自“它们都走 WebSocket”。
+并非每次修改 assignee 都会启动执行。`(*IssueService).WillEnqueueRun` 会检查 assignee、`backlog`、runtime 绑定、归档、访问、自循环和已有 pending task 等条件；`suppress_run` 还能表达“只分配、不启动”。本章从这里开始只讨论通过这些条件的普通直接分配。
 
-### 4. polling 让漏掉的唤醒可以恢复
+## 为什么收到通知还不算拥有任务？
 
-daemon 的 `pollLoop` 会被 task wakeup 和 runtime 集合变化唤醒，也会周期性检查。polling（轮询）就是客户端按间隔主动问服务端：“现在有我能处理的工作吗？”
+任务持久化之后，Server 会发送一次**尽力而为的唤醒通知（best-effort wakeup）**。它的意思只是“可能有新工作，请尽快检查”，而不是“这项工作已经属于你”。通知可以丢失，也可以重复；它不改变任务状态。
 
-因此，通知与轮询承担不同职责：
+真正的执行权来自**原子认领（atomic claim）**：Server 在数据库中选择仍符合条件的 `queued` 任务，并把它变成 `dispatched`。选择候选和改变状态构成同一个不可分割的边界；并发执行者不会都成功拿走同一项工作。
 
-| 机制 | 主要作用 | 本章要记住的限制 |
+<figure>
+
+```mermaid
+flowchart TD
+    saved["已保存：工作确实存在"] --> wake["通知：请尽快检查"]
+    poll["周期检查：补回漏掉的通知"] --> inspect["Daemon 请求领取"]
+    wake --> inspect
+    inspect --> decision{"Server 原子确认"}
+    decision -->|成功| owner["获得执行权"]
+    decision -->|未成功| wait["继续等待或检查"]
+```
+
+<figcaption><strong>TEACHING · 通知与所有权：</strong>通知只加速发现，周期检查只恢复发现；只有 Server 的原子确认才授予执行权。精确实现坐标放在文末。</figcaption>
+
+</figure>
+
+把这段逻辑压缩成伪代码：
+
+```text
+# 教学伪代码：不是 Multica 原始源码
+
+候选 = 锁定一项仍可领取的 queued 任务
+
+if 候选存在:
+    在同一次数据库操作中把它改为 dispatched
+    返回给唯一成功的领取者
+```
+
+实现中的关键 SQL 名为 `ClaimAgentTask`。它使用 `FOR UPDATE SKIP LOCKED` 选择候选，并在原子操作中执行 `queued → dispatched`；资格还包括 runtime 绑定、在线与心跳条件、并发容量和同一 Issue/Agent 的串行约束。
+
+WebSocket 在这里有两个容易混淆的角色：`daemon:task_available` 是前面的唤醒事件；后面的 `tasks.claim` 则可以由 WebSocket RPC 承载。传输通道不是所有权语义，所有权仍以 Server 成功完成数据库 claim 为准。
+
+## 为什么 Daemon 还要主动检查？
+
+通知走的是快速路径：正常送达时，Daemon 几乎立刻开始检查。主动检查，也就是轮询（polling），走的是安全发现路径：即使通知丢失或连接刚刚恢复，Daemon 仍会周期性询问 Server 是否有可领取的工作。
+
+因此两者不是竞争方案：
+
+| 机制 | 解决的问题 | 不能保证什么 |
 | --- | --- | --- |
-| wakeup | 尽快提醒 daemon | best-effort，不能作为任务事实 |
-| polling | 从漏通知、断连后恢复发现 | 发现工作后仍须 claim |
+| 唤醒通知 | 缩短正常情况下的等待时间 | 不保证送达，不授予执行权 |
+| 周期检查 | 从漏通知或断连中重新发现工作 | 发现后仍不等于领取成功 |
+| 原子认领 | 在并发条件下确认唯一执行权 | 不负责准备本地环境 |
 
-`runBatchPoller` 会先预留 daemon 侧的本地 task slot，再按可用容量请求任务。这样可以避免本地已经没有执行空间，却先把服务端任务置为 `dispatched`。
+Daemon 优先通过现有 WebSocket 发起 `tasks.claim` RPC，安全失败时可回退到 HTTP claim 路径。无论请求从哪条传输通道到达，最终都必须经过同一类 Server 端认领语义。
 
-### 5. atomic claim 才是所有权边界
+> 源码坐标：`(*Hub).NotifyTaskAvailable` 发送唤醒；`(*Daemon).pollLoop` 与 `(*Daemon).runBatchPoller` 负责被唤醒和周期检查；`(*Daemon).claimTasksWSFirst` 选择 claim 传输；`ClaimAgentTask` 决定所有权。
 
-daemon 通过 `claimTasksWSFirst` 优先在现有 daemon WebSocket 上调用 `tasks.claim`；在安全的传输或服务端失败场景下，回退到 `POST /api/daemon/tasks/claim`。两种传输最终都要经过服务端 claim 逻辑。
+## 为什么领取以后还不能立刻启动 Codex？
 
-核心 SQL symbol 是 `ClaimAgentTask`。它在同一个原子数据库操作中挑选符合条件的候选行，并把状态从 `queued` 改成 `dispatched`。查询使用 `FOR UPDATE SKIP LOCKED`，避免并发 worker 等待或同时拿走同一候选任务。
+因为“Server 已经把任务交给这台机器”和“这台机器已经准备好运行”是两个时刻。
 
-下面仍是**简化表示**：
+Daemon 会先预留本地 task slot，再向 Server 请求领取。这条顺序很重要：如果本地容量已经满了，就不应先把服务端任务变成 `dispatched`。领取成功后，Daemon 还要根据任务的 `RuntimeID` 找到本地 provider，并由 `execenv.Prepare` 或复用路径准备工作目录和执行环境。
 
-```text
-candidate = SELECT eligible queued task
-            FOR UPDATE SKIP LOCKED
+只有环境准备完成，Daemon 才调用 start endpoint。Server 的 `StartTaskForClaim` 会核对这一次 claim 的 `runtime_id` 与 `dispatched_at`，再把 `dispatched` 改成 `running`。因此本章里的 `running` 更接近“本地环境已经准备好，可以执行”，而不是“刚刚收到了一条消息”。
 
-UPDATE candidate
-SET status = "dispatched",
-    dispatched_at = now()
-```
-
-claim 还会检查 Agent 与 runtime 的当前绑定、runtime 在线状态、心跳新鲜度、并发容量，以及同一 Issue/Agent 的串行约束。只有成功状态转换的 claimant 才获得执行权。
-
-这就是 atomic claim 比“收到通知”更强的原因：选择候选与改变状态被合成一个不可分割的数据库边界。两个 worker 即使几乎同时检查，也不能都把同一条 `queued` 任务成功变成自己的 `dispatched` 任务。
-
-### 6. daemon 先准备本地环境，再报告 `running`
-
-claim 返回任务后，`(*Daemon).handleTask` 根据任务的 `RuntimeID` 在本地 runtime registry 中找到 provider，再把任务交给 `runTask`。如果这个 daemon 已不再跟踪该 runtime，它不会用错误 provider 勉强执行，而会报告失败。
-
-`runTask` 随后调用 `execenv.Prepare` 或复用逻辑，建立 Coding Agent 使用的工作目录与执行环境。研究只验证了这个边界及其时序；仓库缓存、worktree、技能、provider home 等完整内部机制不在本章展开。
-
-环境准备完成后，daemon 才调用 task start endpoint。`StartTaskForClaim` 会核对这一次 claim 的 `runtime_id` 与 `dispatched_at`，再把 `dispatched` 改为 `running`。这避免旧的投递结果越过更新后的所有权边界。
-
-主路径的状态迁移是：
+普通直接分配主路径的状态如下。这是一张**实现图**，状态值和转换点都属于固定 commit 下的真实实现。
 
 <figure>
 
@@ -249,144 +205,197 @@ claim 返回任务后，`(*Daemon).handleTask` 根据任务的 `RuntimeID` 在�
 stateDiagram-v2
     [*] --> queued: CreateAgentTask
     queued --> dispatched: ClaimAgentTask
-    dispatched --> running: StartTaskForClaim（本地准备后）
+    dispatched --> running: 本地准备后 StartTaskForClaim
     running --> completed: CompleteTaskWithTransition
     running --> failed: FailTaskWithTransition
     completed --> [*]
     failed --> [*]
 ```
 
-<figcaption><strong>IMPLEMENTATION · 主路径状态机：</strong>普通直接分配从 <code>queued</code> 开始；claim 建立 <code>dispatched</code> 所有权，本地准备和 start 成功后才进入 <code>running</code>，最后到达 <code>completed</code> 或 <code>failed</code>。图中有意不把可选状态画成必经步骤。<code>[*]</code> 仅是 Mermaid 的图示起点/终点，不是 Multica task 状态，也不表示终态之后还有一次数据库状态迁移。</figcaption>
+<figcaption><strong>IMPLEMENTATION · task 主路径状态：</strong><code>queued → dispatched</code> 表示认领成功；环境准备和 start 成功后才进入 <code>running</code>。<code>[*]</code> 只是 Mermaid 起止记号，不是 Multica task 状态，也不表示终态后的数据库转换。</figcaption>
 
 </figure>
 
-这里的 state transition（状态迁移）不是日志文字，而是任务生命周期事实。不同操作只允许从特定前置状态走向下一个状态。
+`waiting_local_directory` 是一个已验证的可选分支：使用 in-place `local_directory` 且目录正被占用时，任务可以走 `dispatched → waiting_local_directory → running`。它不是所有任务的必经状态。`deferred` 用于定时或媒体门控路径，也不是普通直接分配的起点。
 
-#### 可选分支：`waiting_local_directory`
+## Multica 怎样真正启动 Codex？
 
-如果任务使用 in-place `local_directory`，本地目录正在被另一个任务占用，daemon 可以进入：
+环境准备之后，Daemon 并不直接把所有执行逻辑写死成 Codex。`agent.Backend` 定义统一执行边界，`ResolveBackend` 根据 runtime 的 provider/协议配置解析出具体 backend。可以把两边的职责这样分开：
 
-```text
-dispatched → waiting_local_directory → running
-```
+- 边界之前：领取任务、准备环境、维护生命周期。
+- 边界之后：启动并与某一种 Coding Agent 交互。
 
-这不是每次执行都会经过的阶段。worktree 模式使用隔离目录，也不会因为同一原因在整个 run 期间持有该路径锁。`deferred` 则属于定时或媒体门控路径，不是普通直接分配的起始状态。
-
-### 7. provider boundary 把编排与具体 Coding Agent 分开
-
-`agent.Backend` 定义共同的执行接口，核心形态是 `Execute(context.Context, prompt, ExecOptions) (*Session, error)`。`ResolveBackend` 根据 runtime 的 provider/协议配置得到具体 backend。
-
-这是 provider boundary：daemon 前半段负责认领、环境和生命周期；边界之后，具体 backend 负责如何启动并与某个 Coding Agent 交互。这样同一套 Multica 编排不必硬编码成只能运行 Codex。
-
-对本章的 Codex 例子，边界后的已验证路径是：
+对本章的 Codex 路径，已验证的落点是 `codexBackend.Execute`，随后启动：
 
 ```text
-agent.ResolveBackend(...)
-  → *codexBackend
-  → codexBackend.Execute
-  → codexBackend.executeOnce
-  → codex app-server --listen stdio://
+codex app-server --listen stdio://
 ```
 
-Codex 子进程通过 stdin/stdout 上的 JSON-RPC 2.0 与 backend 通信。到这里，“服务端的一次 Issue 分配”才真正跨过编排边界，变成 Mac 上启动的本地进程。本章不继续展开 Codex 会话协议。
+Codex 子进程通过 stdin/stdout 上的 JSON-RPC 2.0 与 backend 通信。这里的 JSON-RPC 只需理解为：两个进程用结构化请求、响应和通知交谈。协议细节不影响本章主线。
 
-### 8. 消息与最终结果沿 daemon API 返回
+到这一步，最初在网页上的 Issue 分配，才真正成为 Mac 上运行的 Codex 进程。Multica 负责跨边界协调，Codex 负责具体编码工作。
 
-执行期间，`executeAndDrain` 读取 `agent.Session.Messages`，分批调用 `POST /api/daemon/tasks/{taskId}/messages`；粗粒度进度走单独的 `.../progress` endpoint。
+> 源码坐标：`server/pkg/agent/agent.go` 的 `Backend` 定义边界；`server/pkg/agent/builtin_runtimes.go` 的 `ResolveBackend` 解析 backend；`server/pkg/agent/codex.go` 的 `codexBackend.Execute`、`executeOnce` 和 `buildCodexArgs` 落到 Codex 进程。
 
-结束时，`reportTaskResult` 把明确的成功结果发往 `.../complete`，其他结果发往 `.../fail`。服务端再通过 `CompleteTaskWithTransition` 或 `FailTaskWithTransition` 完成幂等终态写入，并发布对应生命周期事件。
+## 结果怎样回来？为什么 task 完成不等于 Issue 完成？
 
-本章的证据只覆盖到已提交的服务端任务状态与生命周期事件。事件如何完整 fan out 到所有实时 UI，不在当前研究范围内。
+执行期间，Daemon 从 provider session 读取消息，分批发到 `POST /api/daemon/tasks/{taskId}/messages`；粗粒度进度走单独的 `.../progress` endpoint。结束时，明确成功的结果发往 `.../complete`，其他结果发往 `.../fail`。Server 最终把 task 写成 `completed` 或 `failed`，并发布相应生命周期事件。
 
-## 为什么这样设计
-
-下面先区分源码直接支持的约束与工程层面的解释。
-
-### 源码直接支持的约束
-
-- 持久化 `queued` 先于 best-effort wakeup；通知丢失不等于任务消失。
-- daemon 周期检查是漏通知的安全网，但只有 claim 才改变所有权。
-- `ClaimAgentTask` 通过数据库锁与状态更新处理并发候选。
-- runtime 在线与心跳新鲜度直接参与 claim 资格判断。
-- daemon 先预留本地容量，再向服务端 claim，减少无容量却已 `dispatched` 的情况。
-- 本地环境准备在 task 进入 `running` 之前完成。
-- `agent.Backend` 把通用编排与具体 provider 执行分开。
-
-### 工程解释
-
-可以把这套结构理解为“可靠事实 + 快速提示”：数据库负责保存可恢复、可竞争的事实；WebSocket 提示负责缩短正常情况下的响应时间；polling 负责在提示缺失时重新发现事实。
-
-这个解释来自上述已验证机制的组合，不应扩写成对作者性能目标、完整故障恢复策略或部署拓扑的推断。
-
-## 核心结论
-
-1. 满足条件的 Issue 分配先由服务端创建 `agent_task_queue(status='queued')`，产品概念 `Run` 在当前源码中主要以 task 术语出现。
-2. `NotifyTaskAvailable` 只是 best-effort wakeup。它让 daemon 更快检查，但不转移任务所有权。
-3. daemon 通过唤醒和周期 polling 发现工作，再通过 `ClaimAgentTask` 原子完成 `queued → dispatched`。
-4. 本地环境准备并成功 start 后，任务才进入 `running`；随后 provider backend 才执行具体 Coding Agent。
-5. Codex 是一个具体 backend：验证过的进程入口是 `codex app-server --listen stdio://`。
-6. provider 消息、进度和最终结果由 daemon 回传，task 最终进入 `completed` 或 `failed`。
-
-## 容易混淆的地方
-
-### `Run` 不等于源码中的 `Run` 类型
-
-`Run` 是产品语言。搜索实现时，应转向 `agent_task_queue`、`AgentTaskQueue`、`TaskService` 和 `task_id`。
-
-### WebSocket 有两个不同角色
-
-`daemon:task_available` 是提示；`tasks.claim` 是可由 WebSocket RPC 承载的请求。前者不授予所有权，后者也必须以服务端数据库 claim 成功为准。
-
-### runtime 不是任意 worker
-
-任务在入队时保存目标 `runtime_id`，claim 还会复核 Agent 到 runtime 的当前绑定。普通路径不是“任意在线机器都能抢”。
-
-### task 状态与 Issue workflow status 是两套状态
+但 task 和 Issue 是两个对象：
 
 ```text
-task/run lifecycle: queued → dispatched → running → completed | failed
+一次执行的生命周期：queued → dispatched → running → completed | failed
 
-Issue workflow（常见流程示意）:
-                    todo → in_progress → in_review → done
+Issue 的协作流程：    todo → in_progress → in_review → done
 ```
 
-它们服务于不同对象。Issue workflow 可以存在其他或自定义状态；这里的重点只是说明它与 task/run lifecycle 属于两套独立状态，本章不展开自定义状态机制。task 的 `completed` 表示这次执行结束，**不会机械地把 Issue 改成 `done`**。Coding Agent 会按工作流通过 CLI 更新 Issue；最终验收仍属于 Issue 协作流程。
+task 的 `completed` 只表示这次 Agent 执行结束；它不会机械地把 Issue 改成 `done`。Coding Agent 会按工作流通过 CLI 更新 Issue，最终验收仍属于协作流程。反过来说，一个 Issue 也可能经历多次执行，不能用一条 task 状态替代整个协作状态。
 
-### `waiting_local_directory` 不是主路径必经状态
+本章的证据只覆盖到 Server 已提交的任务状态与生命周期事件；事件如何完整传播到所有实时 UI，不在当前研究范围内。
 
-它只在 in-place 本地目录存在竞争时出现。把它画进所有 run 的固定生命周期，会误导读者。
+## 回到整张架构图
 
-## 工程上的启示
+现在再看同一套系统，中间步骤已经有了含义：Server 先保存可恢复事实，再用通知加速；Daemon 通过认领获得执行权，在本地容量和环境就绪后跨过 provider 边界；Coding Agent 修改本地代码；Daemon 最后把过程与结果送回 Server。
 
-- **先持久化，再通知。** 通知适合加速，不适合独自承担不可丢失的任务事实。
-- **发现工作与获得工作分开。** “我知道有任务”不等于“这个任务归我执行”。
-- **把所有权变化做成原子状态迁移。** 这比依赖进程内标记更能约束并发 worker。
-- **进入 `running` 要有明确语义。** Multica 把本地环境准备放在 start 之前，使 `running` 更接近“已经可以执行”，而非“刚收到任务”。
-- **在 provider 边界隔离差异。** 通用生命周期留在 daemon，Codex 等工具的启动协议留在各自 backend。
-- **不要用一套状态解释两类对象。** task 终态和 Issue 协作状态应分别建模与展示。
+<figure>
+
+```mermaid
+sequenceDiagram
+    participant H as 人 / Web
+    participant S as Server：协调
+    participant DB as PostgreSQL：持久状态
+    participant D as Daemon：本地执行
+    participant A as Coding Agent
+
+    H->>S: 分配 Issue
+    S->>DB: 保存待执行工作
+    S-->>D: 提醒有新工作
+    D->>S: 请求领取
+    S->>DB: 原子确认执行权
+    S-->>D: 返回已领取任务
+    D->>D: 预留容量并准备环境
+    D->>A: 通过 provider 启动
+    A->>A: 修改本地代码与文件
+    A-->>D: 输出消息与结果
+    D-->>S: 回传过程与终态
+    S->>DB: 保存生命周期结果
+```
+
+<figcaption><strong>TEACHING · 架构综合：</strong>Server 侧保存协调事实，本地侧完成真实执行；<em>保存、提醒、领取</em>是三个不同动作。图折叠了具体 API、函数和兼容分支。</figcaption>
+
+</figure>
+
+这个结构可以概括为“可靠事实 + 快速提示 + 明确所有权 + 本地执行”。前两项让断线不会轻易抹掉工作，认领约束并发，本地边界则让仓库与工具留在真正具备它们的机器上。
+
+这段是对已验证机制的工程解释，不应扩写成作者对性能、完整重试策略或部署拓扑的主观设计声明。
+
+## 容易混淆的五件事
+
+1. **Server 不是 Coding Agent。** 它负责协调与记录；Codex 等工具在执行侧工作。
+2. **产品 `Run` 不是源码中心类型 `Run`。** 当前实现主要使用 `agent_task_queue`、`TaskService` 和 `task_id` 等 task 术语。
+3. **通知不是所有权。** `daemon:task_available` 只提示检查；成功 claim 才产生 `dispatched` 所有权。
+4. **polling 不是认领。** 它负责重新发现工作；发现以后仍须 Server 原子确认。
+5. **task 终态不是 Issue 终态。** `completed` 与 `done` 分属执行生命周期和协作流程。
+
+## 可以带走的工程经验
+
+- 先把不可丢的事实持久化，再用即时通知加速。
+- 把“发现工作”和“获得执行权”分成两个清晰动作。
+- 用原子状态迁移表达所有权变化，而不是依赖某个进程的内存标记。
+- 先确认本地容量，再领取远端工作；先准备环境，再声明 `running`。
+- 用 provider 边界隔离通用编排与具体 Coding Agent。
+- 不要用一套状态解释执行对象与协作对象。
 
 ## 5 分钟快速复习
 
-尝试不回看正文回答：
+试着不用任何函数名回答：
 
-1. 为什么 `CreateAgentTask` 必须发生在 `NotifyTaskAvailable` 之前？
-2. 如果 WebSocket wakeup 丢失，daemon 靠什么重新发现工作？
-3. 哪个状态变化代表任务所有权已经被认领？
-4. 为什么两个并发 worker 不能直接执行同一条 `queued` 任务？
-5. daemon 在什么时候把 task 标为 `running`？
-6. `agent.Backend` 隔离了哪两类职责？
-7. 为什么 task `completed` 不等于 Issue `done`？
+1. Server、Daemon 和 Codex 各负责什么？
+2. 为什么要先保存任务，再提醒机器？
+3. 通知、轮询和认领分别解决什么问题？
+4. 哪一步真正改变执行权？
+5. 为什么领取后不能立即启动 Codex？
+6. provider 边界隔开了哪两类职责？
+7. 为什么一次执行结束不等于 Issue 已被验收？
 
-答案可以压缩成一句话：**服务端先保存 `queued`，wakeup 与 polling 促使 daemon 检查，atomic claim 产生 `dispatched` 所有权，本地准备后进入 `running`，provider 启动 Codex 并把结果回传。**
+如果能说出下面这句话，你已经掌握主线：
 
-## 源码基线与研究依据
+> Server 先保存工作并提醒机器；Daemon 发现后请求领取，Server 原子确认执行权；Daemon 再准备本地环境、通过 provider 启动 Coding Agent，并把结果送回 Server。
+
+## 想继续读源码？
+
+到这里，读者侧的解释已经完整。下面是用于核对实现的精确源码坐标；不需要为了理解主线而记忆它们。
+
+### Source Map
+
+所有实现条目均来自 `research/run-lifecycle/research-note.md`，证据等级为 `SOURCE`；产品术语与部分行为边界另有该研究中标注的 `DOCS` 支持。
+
+| 源码位置 | 关键 symbol | 证明什么 |
+| --- | --- | --- |
+| `server/internal/handler/issue.go` | `(*Handler).UpdateIssue` | 保存 assignee 变化，并进入执行触发判断 |
+| `server/internal/service/issue_trigger.go` | `(*IssueService).WillEnqueueRun` | 判断当前分配是否允许入队 |
+| `server/internal/handler/issue_trigger.go` | `(*Handler).dispatchIssueRun` | 把直接 Agent 触发交给 task 路径 |
+| `server/internal/service/task.go` | `(*TaskService).enqueueIssueTaskWithCommentPlan` | 解析 runtime、创建任务、发布 queued 事件并提醒 runtime |
+| `server/pkg/db/queries/agent.sql` | `CreateAgentTask` | 写入 `status='queued'` 的持久记录 |
+| `server/internal/daemonws/hub.go` | `(*Hub).NotifyTaskAvailable` | 发送 best-effort 的 `daemon:task_available` 提示 |
+| `server/internal/daemon/daemon.go` | `(*Daemon).pollLoop`, `(*Daemon).runBatchPoller` | 接收唤醒、周期检查，并在 claim 前预留本地容量 |
+| `server/internal/daemon/wsrpc.go` | `(*Daemon).claimTasksWSFirst` | WebSocket RPC 优先，安全失败时回退 HTTP |
+| `server/internal/service/task.go` | `(*TaskService).ClaimTasksForRuntimes`, `(*TaskService).claimTask` | 应用 runtime、Agent、容量与新鲜度条件 |
+| `server/pkg/db/queries/agent.sql` | `ClaimAgentTask` | 原子执行 `queued → dispatched` |
+| `server/internal/daemon/daemon.go` | `(*Daemon).handleTask`, `(*Daemon).runTask` | 路由本地 runtime、准备环境、确认 start、调用 provider |
+| `server/internal/daemon/execenv/execenv.go` | `Prepare` | 建立 Coding Agent 使用的本地执行环境 |
+| `server/internal/service/task.go` | `(*TaskService).StartTaskForClaim` | 校验 claim generation，并进入 `running` |
+| `server/pkg/agent/agent.go` | `Backend`, `New`, `ExecOptions` | 定义统一 provider 执行边界 |
+| `server/pkg/agent/builtin_runtimes.go` | `ResolveBackend` | 把 runtime/provider 配置解析为 backend |
+| `server/pkg/agent/codex.go` | `codexBackend.Execute`, `executeOnce`, `buildCodexArgs` | 启动 `codex app-server --listen stdio://` |
+| `server/internal/daemon/daemon.go` | `(*Daemon).executeAndDrain`, `(*Daemon).reportTaskResult` | 回传消息、进度和最终结果 |
+| `server/internal/handler/daemon.go` | `ReportTaskMessages`, `CompleteTask`, `FailTask` | 接收 daemon 回传并进入服务端状态处理 |
+| `server/internal/service/task.go` | `CompleteTaskWithTransition`, `FailTaskWithTransition` | 幂等写入 `completed` 或 `failed` 并发布事件 |
+
+### 精确执行 / 调用链
+
+下面是根据研究整理的 happy path，省略参数校验、日志与辅助调用：
+
+```text
+PUT /api/issues/{id}
+  → Handler.UpdateIssue
+  → IssueService.WillEnqueueRun
+  → Handler.dispatchIssueRun
+  → TaskService.EnqueueTaskForIssueWithHandoff
+  → enqueueIssueTaskWithCommentPlan
+  → CreateAgentTask(status = queued)
+  → publish task:queued
+  → EmptyClaim.Bump
+  → NotifyTaskAvailable(runtime_id, task_id)
+  → daemon taskWakeupLoop / pollLoop
+  → runBatchPoller（先预留本地 slot）
+  → claimTasksWSFirst
+  → WS RPC tasks.claim，或 HTTP fallback
+  → Handler.ClaimTasksByRuntime
+  → TaskService.ClaimTasksForRuntimes
+  → claimTask
+  → ClaimAgentTask: queued → dispatched
+  → daemon handleTask / runTask
+  → execenv.Prepare 或复用已有环境
+  → POST /api/daemon/tasks/{taskId}/start
+  → StartTaskForClaim: dispatched → running
+  → agent.ResolveBackend(...)
+  → agent.Backend.Execute(...)
+  → codexBackend.Execute / executeOnce
+  → codex app-server --listen stdio://
+  → POST .../messages 与 .../progress
+  → reportTaskResult
+  → POST .../complete 或 .../fail
+  → CompleteTaskWithTransition 或 FailTaskWithTransition
+  → completed 或 failed + lifecycle event
+```
+
+### 源码基线、研究依据与证据边界
 
 - 上游仓库：`multica-ai/multica`
 - 完整 commit SHA：`b4ca5b4a23e68b26292a680dca7689a952bb1cd5`
 - 研究产物：`research/run-lifecycle/research-note.md`
-- 证据类型：实现结论以研究产物中的 `SOURCE` 为主；产品术语映射、daemon 心跳/轮询描述与 Issue 状态边界同时参考其中标注的 `DOCS`。本章未新增 `EXPERIMENT`。
-- 关键证据入口：`server/internal/handler/issue.go` 的 `(*Handler).UpdateIssue`、`server/internal/service/task.go` 的 `TaskService` 路径、`server/pkg/db/queries/agent.sql` 的 `CreateAgentTask` 与 `ClaimAgentTask`、`server/internal/daemon/daemon.go` 的 daemon 执行路径、`server/pkg/agent/agent.go` 的 `Backend`、`server/pkg/agent/codex.go` 的 `codexBackend`。
+- 图示证据：`research/run-lifecycle/diagram-evidence.md`
+- 证据类型：实现结论以 `SOURCE` 为主；产品 Run/task 术语映射、Daemon 的轮询/心跳背景和 Issue 状态边界同时参考 `DOCS`。本章未新增 `EXPERIMENT`。
 
-### 本章有意保留的未决问题
-
-现有研究不足以确定完整重试策略、stale dispatch recovery、完整 heartbeat/离线恢复生命周期、完整 realtime UI fanout、`execenv.Prepare` 的全部内部机制、所有自定义 runtime/provider 行为，以及多实例 wakeup relaying。本章没有把这些内容补写成确定事实。
+现有证据不足以完整解释：重试策略、stale dispatch recovery、heartbeat/离线恢复全生命周期、多实例 wakeup relay 与 Redis 细节、实时 UI 的完整事件传播、`execenv.Prepare` 的全部内部机制、claim payload/授权的所有字段，以及所有自定义 runtime/provider 行为。本章有意不把这些未决部分写成确定事实。
