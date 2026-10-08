@@ -26,9 +26,9 @@
 
 ### Evidence
 
-- **Major semantic relationships:** Research Question 与 Findings B–E 验证了 Server 持久任务、Daemon 在本地准备环境、provider/backend 启动 Coding Agent、消息与结果回传的完整边界。Source Map 中 `TaskService`、`agent_task_queue`、Daemon `runTask`、`agent.Backend` 与 `codexBackend` 支持这些职责。
-- **Collapsed implementation steps:** 图把 `UpdateIssue`、入队、wakeup、claim、start、provider resolution 与结果 endpoint 折叠为架构关系；这些精确步骤没有被声明为图中节点。
-- **Label policy:** “协调与持久状态”“本地执行”“准备工作环境”“启动 Coding Agent”“本地代码与文件”是读者侧语义标签，故意不等同于真实 symbol。
+- **Major semantic relationships:** Research Question 与 Findings B–E 验证了 Server 持久任务、Server 向 Daemon 发出 best-effort wakeup、Daemon 主动请求 claim、Daemon 回传结果、Daemon 在本地准备环境以及 provider/backend 启动 Coding Agent 的边界。Source Map 中 `TaskService`、`agent_task_queue`、`NotifyTaskAvailable`、`claimTasksWSFirst`、Daemon `runTask` / `reportTaskResult`、`agent.Backend` 与 `codexBackend` 支持这些职责。
+- **Collapsed implementation steps:** 图把 `UpdateIssue`、入队、wakeup、WS-first/HTTP claim、start、provider resolution 与结果 endpoint 折叠为架构关系；这些精确步骤没有被声明为图中节点。Server → Daemon 只标“提醒有工作”，Daemon → Server 则合并“请求领取 / 回传结果”，避免把通知画成任务所有权 push。
+- **Label policy:** “协调与持久状态”“提醒有工作”“请求领取 / 回传结果”“本地执行”“准备工作环境”“启动 Coding Agent”“本地代码与文件”是读者侧语义标签，故意不等同于真实 symbol。
 - **Uncertainty preserved:** 未展示完整 Control Plane/Execution Plane、Redis relay、heartbeat/retry、`execenv.Prepare` 内部、全部 provider 或 UI fanout。
 
 ### Validation
@@ -139,7 +139,7 @@
 - 阅读进度与 outline：在三个 viewport 滚动到页面底部后，`--reading-progress` 分别约为 0.995、0.993、0.997，且始终只有一个 outline 项处于 current 状态。
 - JavaScript disabled：5 个 Mermaid block 均未出现 `data-processed`，`flowchart TD`、`stateDiagram-v2` 与 `sequenceDiagram` 原始 DSL 可见，5 条 caption 保留。
 - GitHub Pages base：production preview 中检查到的绝对站内资源与导航链接均保留 `/multica-learning/` 前缀。
-- 阅读统计：页面显示 `4,267 字，含 51 行代码，约 23 分钟`；`npm test` 通过 Mermaid DSL 排除规则，统计结果可确定复现。
+- 阅读统计：页面显示 `4,536 字，含 66 行代码，约 25 分钟`；新增的 15 行 production SQL 计入源码行数，Mermaid DSL 仍被排除；`npm test` 通过，统计结果可确定复现。
 - 本地命令：`npm ci`、`npm run check`、`npm test`、`npm run build`、`git diff --check` 均通过。build 成功生成 3 个静态页面；现有 bundler directive 与 chunk-size warning 未影响输出。
 
 构建成功只证明语法兼容；前述证据审查才是图的技术正确性依据。
