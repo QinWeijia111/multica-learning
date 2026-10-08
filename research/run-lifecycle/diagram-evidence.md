@@ -1,147 +1,145 @@
 # Run Lifecycle Diagram Evidence
 
-本文档把 `site/src/content/tutorials/run-lifecycle.mdx` 中的 Mermaid 图映射回既有研究证据。它不是新的源码研究产物，也不增加 `research/run-lifecycle/research-note.md` 之外的实现事实。
+本文档把 `site/src/content/tutorials/run-lifecycle.mdx` 中的 Mermaid 图映射回既有研究证据。它不是新的源码研究产物，不增加 `research/run-lifecycle/research-note.md` 之外的实现事实。
+
+本次 Golden Chapter 改写采用读者优先的 `TEACHING` / `IMPLEMENTATION` 分类。`TEACHING` 图用中文语义标签折叠已验证步骤，帮助首次阅读；它们不是源码实体图。`IMPLEMENTATION` 图保留固定上游 commit 下的准确状态值与转换依据。
 
 ## Diagram plan
 
-| 读者问题 | 教程位置 | 类别 | Mermaid 类型 | 图优于纯文字的原因 | Research Note 证据是否足够 | 决定 |
-| --- | --- | --- | --- | --- | --- | --- |
-| 初学者应怎样连接 Issue、Run、Runtime、Daemon 与 Coding Agent？ | “最小心智模型” | `CONCEPTUAL` | `flowchart` | 一眼呈现五个概念的递进关系，同时可在 caption 中明确它不是源码类型图 | 是；只复用教程已有概念模型，不作为实现证据 | 加入 |
-| 为什么 `NotifyTaskAvailable` 不等于 daemon 已拥有任务？ | “主调用链”之后、“关键实现拆解”之前 | `IMPLEMENTATION` | `flowchart` | 分叉再汇合的结构能同时展示 wakeup 与 polling 的不同作用，并把所有权边界固定在 claim | 是；Research Note 的 Execution / Call Chain、Finding C 与 Evidence Table 直接支持节点、顺序和关系 | 加入 |
-| 直接分配主路径上的 task 经过哪些状态？ | “daemon 先准备本地环境，再报告 `running`” | `IMPLEMENTATION` | `stateDiagram-v2` | 状态图能比行内箭头更清楚地区分转换触发点、成功终态与失败终态 | 是；Research Note 的 Finding F 逐项列出转换与 symbol | 加入 |
-| Issue 分配到本地 Codex 执行期间，各参与者按什么顺序交互？ | 原计划放在“主调用链” | `IMPLEMENTATION` | `sequenceDiagram` | sequence diagram 适合参与者时序，但这里需要同时容纳 API、服务、数据库、daemon、provider 与进程 | 局部足够，但完整绘制会与现有简化调用链及另外两张图重复，并容易混合抽象层级 | 不加入；保留现有文字调用链 |
+| 读者问题 | 教程位置 | 类别 | Mermaid 类型 | 决定 |
+| --- | --- | --- | --- | --- |
+| Multica 是什么系统，Server 与本地执行的边界在哪里？ | “先看整台机器” | `TEACHING` | `flowchart` | 新增；作为开篇架构图 |
+| 一项工作怎样从分配走到本地执行并返回？ | “一项工作怎样跑完全程” | `TEACHING` | `flowchart` | 新增；用八个语义阶段替代早期 symbol 链 |
+| 为什么通知和周期检查都不等于获得执行权？ | “为什么收到通知还不算拥有任务？” | `TEACHING` | `flowchart` | 由旧 `IMPLEMENTATION` 可靠性交接图重构；移除主视觉中的函数名 |
+| 普通直接分配 task 的主路径状态如何变化？ | “为什么领取以后还不能立刻启动 Codex？” | `IMPLEMENTATION` | `stateDiagram-v2` | 保留并微调说明 |
+| 学完机制后，各职责怎样重新合在一起？ | “回到整张架构图” | `TEACHING` | `sequenceDiagram` | 新增；作为章节末尾的架构综合 |
 
-本次选择三张图，不以数量为目标。被省略的 sequence diagram 没有提供足以抵消重复与密度的新教学价值。
+旧的 `conceptual-run-path` 图被移除。它以 `Issue → Run → Runtime → Daemon → Coding Agent` 为主线，仍过早要求读者处理产品名词；新的开篇架构图改为先表达“协调与持久状态 / 本地执行 / 本地代码与文件”。旧的 `durability-and-ownership` 图被重新分类并重画为 `TEACHING`：精确 symbol 移至邻近源码坐标与文末附录。
 
-## Diagram 1 — `conceptual-run-path`
+## Diagram 1 — `whole-machine-boundary`
 
-### Diagram
+- **Diagram question:** Multica 是什么系统，Server、Daemon、Coding Agent 与本地文件各自在哪里？
+- **Diagram category:** `TEACHING`
+- **Research artifact:** `research/run-lifecycle/research-note.md`
+- **Upstream commit:** `b4ca5b4a23e68b26292a680dca7689a952bb1cd5`
+- **Diagram type:** `flowchart`
 
-- 标题 / 标识：`conceptual-run-path`
-- 读者问题：初学者应怎样连接 Issue、Run、Runtime、Daemon 与 Coding Agent？
-- 类别：`CONCEPTUAL`
-- Mermaid 类型：`flowchart`
-- 教程位置：“最小心智模型”开头，替换原 ASCII 图
+### Evidence
 
-### Evidence baseline
+- **Major semantic relationships / edge evidence:** Research Question 与 Findings B–E 验证了 Server 持久任务、Server 向 Daemon 发出 best-effort wakeup、Daemon 主动请求 claim、Daemon 独立回传过程与结果、Daemon 在本地准备环境以及 provider/backend 启动 Coding Agent 的边界。Source Map 中 `TaskService`、`agent_task_queue`、`NotifyTaskAvailable`、`claimTasksWSFirst`、Daemon `runTask` / `reportTaskResult`、`agent.Backend` 与 `codexBackend` 支持这些职责和方向。
+- **Collapsed implementation steps:** 图把 `UpdateIssue`、入队、wakeup、WS-first/HTTP claim、start、provider resolution 与结果 endpoint 折叠为架构关系；这些精确步骤没有被声明为图中节点。三条跨边界语义保持分开：Server → Daemon 只标“提醒有工作”，Daemon → Server 的 claim 边只标“请求领取”，结果路径继续由另一条 Daemon → Server 的“回传过程与结果”表达，避免把 wakeup、claim 与 result reporting 混在一起。
+- **Label policy:** “协调与持久状态”“提醒有工作”“请求领取”“回传过程与结果”“本地执行”“准备工作环境”“启动 Coding Agent”“本地代码与文件”是读者侧语义标签，故意不等同于真实 symbol。
+- **Uncertainty preserved:** 未展示完整 Control Plane/Execution Plane、Redis relay、heartbeat/retry、`execenv.Prepare` 内部、全部 provider 或 UI fanout。
 
-- 研究产物：`research/run-lifecycle/research-note.md`
-- 上游仓库：`multica-ai/multica`
-- 完整上游 commit：`b4ca5b4a23e68b26292a680dca7689a952bb1cd5`
+### Validation
 
-### Node evidence
+- Mermaid render：production build 与三个目标 viewport 均成功渲染，无 error state。
+- Mobile/readability：使用 `TD` 布局与七个节点；390px 无页面级或图容器 overflow。
+- Exact identifiers：`PostgreSQL`、`Local Daemon`、`Provider Adapter`、`Coding Agent` 均与研究边界一致；中文职责标签不作为源码标识符。
+- Text fallback：图前后正文明确陈述 Server 负责协调，本地侧负责执行，修改后的代码位于执行侧。
+- **Reviewer verdict:** `PASS`（Tutorial Writer 自审；仍需 human teaching-quality review）。
 
-这是一张教学概念图，不把节点声明为源码 symbol。节点沿用已通过技术评审的教程原模型；Research Note 的 Tutorial Implications 支持把产品 `Run` 映射到内部 task 术语，并把 daemon 与 provider/Codex 路径作为本章教学主线。
+## Diagram 2 — `semantic-execution-journey`
 
-### Edge evidence
+- **Diagram question:** 一项工作按什么语义阶段从 Issue 分配走到结果回传？
+- **Diagram category:** `TEACHING`
+- **Research artifact:** `research/run-lifecycle/research-note.md`
+- **Upstream commit:** `b4ca5b4a23e68b26292a680dca7689a952bb1cd5`
+- **Diagram type:** `flowchart`
 
-概念边只表达本章的阅读顺序，不作为 `SOURCE` 调用关系。caption 与紧邻正文明确说明这些概念不都对应同名源码类型。
+### Evidence
 
-### Preserved uncertainty
+- **Major semantic relationships:** Research Note 的 Execution / Call Chain 逐步支持分配、持久化、通知、Daemon 发现、普通 `runBatchPoller` 路径在 claim 前预留本地 slot、Server claim、环境准备、provider 执行和回传。
+- **Collapsed implementation steps:** “保存”折叠 `CreateAgentTask` 与 queued event；“提醒”折叠 cache bump 与 `NotifyTaskAvailable`；第 5 步折叠本地 slot reservation、WS-first/HTTP claim 与 Server ownership confirmation，但保持“slot reservation → claim”的顺序；第 6 步只折叠 claim 成功后的环境准备 / 复用；“回传”折叠 messages/progress/complete/fail endpoints。
+- **Label policy:** 八个标签故意使用动作语义，而不是 `UpdateIssue`、`ClaimAgentTask`、`ResolveBackend` 等准确 symbol。精确坐标保留在附录。
+- **Uncertainty preserved:** 只画普通直接分配 happy path；未加入 `waiting_local_directory`、`deferred`、retry、stale claim 或完整失败恢复。
 
-- 未把 `Run` 画成源码中的中心 type。
-- 未展开 runtime/provider 配置、`execenv.Prepare` 内部机制或自定义 runtime 行为。
+### Validation
 
-### Review
+- Mermaid render：production build 与三个目标 viewport 均成功渲染，无 error state。
+- Mobile/readability：纵向八节点避免超宽布局；390px 无页面级或图容器 overflow。
+- Exact identifiers：图中没有伪造的生产 symbol。
+- Text fallback：紧邻图前的编号列表完整复述八步。
+- **Reviewer verdict:** `PASS`（Tutorial Writer 自审；仍需 human teaching-quality review）。
 
-- 精确标识符：`Issue`、`Run`、`Runtime`、`Daemon`、`Coding Agent` 沿用产品/教程术语。
-- 文本 fallback：图后的五项定义与 `Run` 到内部 task 术语的映射完整保留。
-- Reviewer verdict：`PASS`（Tutorial Writer 自审；仍需 Technical Reviewer 复核）。
+## Diagram 3 — `notification-versus-ownership`
 
-## Diagram 2 — `durability-and-ownership`
+- **Diagram question:** 为什么收到通知或周期检查到工作，仍不等于获得执行权？
+- **Diagram category:** `TEACHING`
+- **Research artifact:** `research/run-lifecycle/research-note.md`
+- **Upstream commit:** `b4ca5b4a23e68b26292a680dca7689a952bb1cd5`
+- **Diagram type:** `flowchart`
 
-### Diagram
+### Evidence
 
-- 标题 / 标识：`durability-and-ownership`
-- 读者问题：为什么 `NotifyTaskAvailable` 不等于 daemon 已拥有任务？
-- 类别：`IMPLEMENTATION`
-- Mermaid 类型：`flowchart`
-- 教程位置：“主调用链”的简化调用链之后
+- **Major semantic relationships:** Finding C.1 验证持久任务先于 best-effort wakeup；C.2 验证 wakeup 与周期 polling 都促使检查；C.5 验证 `ClaimAgentTask` 的 `queued → dispatched` 才是数据库所有权边界。
+- **Collapsed implementation steps:** “Server 原子确认”折叠 WS RPC/HTTP transport、service eligibility checks 与 `ClaimAgentTask` SQL；“继续等待或检查”只表示没有取得本次执行权，不声明具体 retry 策略。
+- **Label policy:** 主视觉只保留“工作事实 / 提醒 / 请求领取 / 原子确认 / 执行权”。`NotifyTaskAvailable`、`tasks.claim` 与 `ClaimAgentTask` 在正文和附录映射。
+- **Uncertainty preserved:** 未绘制通知丢失概率、polling 间隔、完整心跳/离线恢复、stale dispatch 或自动 retry。
 
-### Evidence baseline
+### Validation
 
-- 研究产物：`research/run-lifecycle/research-note.md`
-- 上游仓库：`multica-ai/multica`
-- 完整上游 commit：`b4ca5b4a23e68b26292a680dca7689a952bb1cd5`
-- 主要依据：Execution / Call Chain；Finding B.2、C.1–C.4；Evidence Table 中 direct assignment persistence、notification、claim transport 与 claim eligibility 四项。
+- Mermaid render：production build 与三个目标 viewport 均成功渲染，无 error state。
+- Mobile/readability：`TD` 布局包含六个节点和一个决策点；390px 无页面级或图容器 overflow。
+- Exact identifiers：图中没有把 WebSocket transport 画成所有权；邻近正文保留准确事件/RPC/SQL 名称。
+- Text fallback：图前后的自然语言与伪代码分别解释通知、轮询和原子认领。
+- **Reviewer verdict:** `PASS`（Tutorial Writer 自审；仍需 human teaching-quality review）。
 
-### Node evidence
+## Diagram 4 — `direct-assignment-task-states`
 
-- `agent_task_queue(status='queued')`：Source Map 的 `CreateAgentTask`；Finding B.2。
-- `NotifyTaskAvailable`：Source Map 的 `(*Hub).NotifyTaskAvailable`；Finding C.1。
-- 周期 polling 与 daemon 检查：Source Map 的 `(*Daemon).pollLoop`、`(*Daemon).runBatchPoller`；Finding C.2。
-- `ClaimAgentTask` 与 `queued → dispatched`：Source Map 的 `ClaimAgentTask`；Finding C.4。
+- **Diagram question:** 普通直接分配主路径上的 task 有哪些状态，什么操作触发转换？
+- **Diagram category:** `IMPLEMENTATION`
+- **Research artifact:** `research/run-lifecycle/research-note.md`
+- **Upstream commit:** `b4ca5b4a23e68b26292a680dca7689a952bb1cd5`
+- **Diagram type:** `stateDiagram-v2`
 
-### Edge evidence
+### Evidence
 
-- `queued → NotifyTaskAvailable`：Execution / Call Chain 记录 `CreateAgentTask` 后发布 `task:queued`，再经 `EmptyClaim.Bump` 调用 `NotifyTaskAvailable`；Finding C.1 明确持久任务先于 best-effort 通知。
-- `NotifyTaskAvailable → daemon 检查`：Finding C.1–C.2 说明 wakeup nudges `pollLoop`，提示 daemon 尽快检查。
-- `周期 polling → daemon 检查`：Finding C.2 说明同一 loop 周期性 safety-poll，以恢复漏掉的事件。
-- `daemon 检查 → ClaimAgentTask`：Execution / Call Chain 记录 `claimTasksWSFirst` 经 WS RPC `tasks.claim` 或 HTTP fallback 到服务端 claim 路径，最终由 `ClaimAgentTask` 原子完成 `queued → dispatched`。
+- **Node evidence:** `queued`、`dispatched`、`running`、`completed`、`failed` 均来自 Finding F 的 ordinary direct-assignment 主路径。
+- **Edge evidence:** `CreateAgentTask` 支持创建 `queued`；`ClaimAgentTask` 支持 `queued → dispatched`；本地准备完成后 `StartTaskForClaim` 支持 `dispatched → running`；`CompleteTaskWithTransition` 与 `FailTaskWithTransition` 支持两个终态。
+- **Uncertainty preserved:** `waiting_local_directory` 作为可选分支留在邻近正文；`deferred` 明确排除于普通起始路径。未绘制 cancel、retry、stale-claim recovery、queued expiry 或完整状态图。
+- **Notation boundary:** `[*]` 仅为 Mermaid 起止记号，不是 Multica 状态；终态到 `[*]` 也不是额外数据库迁移。
 
-### Preserved uncertainty
+### Validation
 
-- 图不表示 notification 转移所有权，也不把 WebSocket transport 等同于 claim 语义。
-- 未绘制 multi-instance wakeup relay、Redis invalidation、heartbeat/offline 完整恢复、stale dispatch、超时或重试。
-- 未量化 polling 周期或通知丢失概率。
+- Mermaid render：production build 与三个目标 viewport 均成功渲染，无 error state。
+- Mobile/readability：主路径只保留五个实现状态；390px 无页面级或图容器 overflow。
+- Exact identifiers：状态值与五个转换 symbol 已依据 Research Note 核对。
+- Text fallback：caption、前后段落与可选分支说明完整保留状态语义。
+- **Reviewer verdict:** `PASS`（Tutorial Writer 自审；仍需 human technical review）。
 
-### Review
+## Diagram 5 — `architecture-synthesis`
 
-- 精确标识符：已核对 `agent_task_queue`、`NotifyTaskAvailable`、`tasks.claim`、`ClaimAgentTask`、`queued`、`dispatched`。
-- 文本 fallback：caption、主调用链后的总结以及“WebSocket wakeup 不是 task ownership”“polling”“atomic claim”三节都保留关键结论。
-- Reviewer verdict：`PASS`（Tutorial Writer 自审；仍需 Technical Reviewer 复核）。
+- **Diagram question:** 理解各机制后，Server 持久协调、本地执行、所有权和结果回传怎样组成一次完整协作？
+- **Diagram category:** `TEACHING`
+- **Research artifact:** `research/run-lifecycle/research-note.md`
+- **Upstream commit:** `b4ca5b4a23e68b26292a680dca7689a952bb1cd5`
+- **Diagram type:** `sequenceDiagram`
 
-## Diagram 3 — `direct-assignment-task-states`
+### Evidence
 
-### Diagram
+- **Major semantic relationships:** Research Note 的完整 Execution / Call Chain 支持 Human/Web 入口、Server 持久任务、wakeup，以及普通 `runBatchPoller` 路径中的“Daemon 预留本地 slot → 发出 claim → Server 数据库确认 ownership → claim 成功后准备 / 复用环境 → start → `running` → provider/Codex 执行 → 消息/终态回传 → Server 终态写入”。
+- **Collapsed implementation steps:** Server 与 PostgreSQL 之间的边折叠 handler/service/SQL；“预留本地执行 slot”折叠 `runBatchPoller` 的 semaphore 操作，“准备 / 复用执行环境”折叠 runtime lookup 与 `execenv.Prepare` / reuse，“环境就绪，请求 start → 写入 running”折叠 start endpoint 与 `StartTaskForClaim`；“通过 provider 启动”折叠 `ResolveBackend` 和具体 Codex backend。图明确把 slot reservation 与 claim 后的 environment preparation 画成两个阶段，不再使用 `claim → local slot reservation` 的错误顺序。
+- **Label policy:** participant 与消息均使用中文职责语义；它们是教学角色，不声称对应单一 process/type。Coding Agent 自循环的“修改本地代码与文件”表示执行侧行为，不表示独立 Server 调用。
+- **Uncertainty preserved:** slot-before-claim 只限定于当前研究确认的普通 `runBatchPoller` 路径，不扩张为所有 Multica 执行路径的全局保证；图不展开协议 fallback、失败/retry、完整环境内容、terminal callback durability 或 UI fanout。
 
-- 标题 / 标识：`direct-assignment-task-states`
-- 读者问题：普通直接分配主路径上的 task 经过哪些状态，什么操作触发转换？
-- 类别：`IMPLEMENTATION`
-- Mermaid 类型：`stateDiagram-v2`
-- 教程位置：“daemon 先准备本地环境，再报告 `running`”
+### Validation
 
-### Evidence baseline
-
-- 研究产物：`research/run-lifecycle/research-note.md`
-- 上游仓库：`multica-ai/multica`
-- 完整上游 commit：`b4ca5b4a23e68b26292a680dca7689a952bb1cd5`
-- 主要依据：Finding F “Verified state transitions”及其列出的各转换 symbol。
-
-### Node evidence
-
-`queued`、`dispatched`、`running`、`completed`、`failed` 均来自 Finding F 的 ordinary direct-assignment 主路径。
-
-### Edge evidence
-
-- `[*] → queued`：`[*]` 是 Mermaid 起点记号；真正被源码验证的事实是 `CreateAgentTask` 将普通直接分配任务的首个持久状态写为 `queued`。不把 `[*]` 视为 Multica 状态。
-- `queued → dispatched`：`ClaimAgentTask` 原子 claim；Finding F。
-- `dispatched → running`：`StartAgentTask` / `StartTaskForClaim`，且 Finding D.3–D.4 证明本地准备先于 start；图使用服务层 symbol `StartTaskForClaim`。
-- `running → completed`：`CompleteAgentTask` 位于 `CompleteTaskWithTransition` 中；Finding F。
-- `running → failed`：`FailAgentTask` 位于 `FailTaskWithTransition` 中；Finding F。
-- `completed → [*]` / `failed → [*]`：两条边仅表示 Mermaid 图示结束，不表示 Multica 在 `completed` 或 `failed` 之后执行了额外数据库状态迁移。
-
-### Preserved uncertainty
-
-- `waiting_local_directory` 是已验证的可选分支，但不画进主路径；紧邻正文单独解释。
-- `deferred` 不属于普通直接分配路径，因此未画。
-- 未绘制 cancel、retry、stale-claim recovery、queued expiry 或完整 active/terminal 状态图。
-- task 终态与 Issue workflow 状态的关系不在这张 task 状态图中混画；后文继续明确两者独立。
-
-### Review
-
-- 精确标识符：已核对五个状态值及 `CreateAgentTask`、`ClaimAgentTask`、`StartTaskForClaim`、`CompleteTaskWithTransition`、`FailTaskWithTransition`。
-- 文本 fallback：caption、前后段落、可选 `waiting_local_directory` 小节与“task 状态与 Issue workflow status 是两套状态”小节保留完整结论。
-- Reviewer verdict：`PASS`（Tutorial Writer 自审；仍需 Technical Reviewer 复核）。
+- Mermaid render：production build 与三个目标 viewport 均成功渲染，无 error state。
+- Mobile/readability：五个 participant 在 390px 仍缩放到图容器内，无页面级 overflow；无 JavaScript 时原始 DSL 可读。
+- Exact identifiers：图不使用源码 symbol；准确调用链紧随文末附录。
+- Text fallback：图前后段落完整复述“保存、提醒、预留本地 slot、领取、准备、start / running、执行、回传”。
+- **Reviewer verdict:** `PASS`（Tutorial Writer 自审；仍需 human teaching-quality review）。
 
 ## Validation record
 
-- Mermaid render：生产 build 共转换 3 个 Mermaid block；本地 production preview 在 1440×1000、1024×900、390×844 三个 viewport 中均得到 3 个 `data-processed` 容器和 3 个 SVG，无 error state，也无 fatal console error。
-- 响应式：三个 viewport 均无 page-level horizontal overflow；每张图的 `scrollWidth` 等于容器 `clientWidth`，因此无需 `data-wide`。
-- Caption：三个 viewport 均可找到 3 条邻近 `figcaption`。
-- 章节导航：1440px 的右侧 outline 可见且包含 29 个链接；1024px 与 390px 的移动 outline 同样保留 29 个链接。
-- 阅读进度：三个 viewport 中滚动后 `--reading-progress` 都从初始值更新为非零值。
-- JavaScript disabled：正文存在，3 个 Mermaid block 均未标记 `data-processed`，原始 DSL 可见，3 条 caption 保留。
-- GitHub Pages base：production preview 中检查的站内绝对资源与链接均保留 `/multica-learning/` 前缀。
-- 阅读统计：`npm test` 通过 Mermaid 排除规则；教程显示 `4,517 字，含 42 行代码，约 23 分钟`。修改前为 63 行，替换掉的 ASCII 图不再计入，新增 Mermaid DSL 也未被计为程序/源码行。
-- 本地命令：`npm ci`、`npm run check`、`npm test`、`npm run build`、`git diff --check` 均通过。首次并行运行 `astro check` 与 build 时，两者争用 `.astro/content-modules.mjs.tmp` 导致一次 build rename 失败；随后按顺序重跑 build 成功，3 个静态页面生成完成。
+- Mermaid render：production build 转换 5 个 Mermaid block；本地 production preview 在 1440×1000、1024×900、390×844 三个 viewport 中均得到 5 个 `data-processed` 容器、5 个 SVG、5 条 caption，未出现 Mermaid error 节点。
+- 响应式：三个 viewport 的 `documentElement.scrollWidth` 均未超过实际 viewport；五张图的 `scrollWidth` 均等于容器 `clientWidth`。代码块在 390px 下按设计保留容器内横向滚动，没有造成页面级 overflow。
+- 视觉检查：三个 viewport 的章标题、描述、来源卡与开篇正文均未截断；1440px 右侧 outline 可见，1024px 与 390px 保留移动 outline。页面共有 17 个二/三级标题链接。
+- 阅读进度与 outline：在三个 viewport 滚动到页面底部后，`--reading-progress` 分别约为 0.995、0.993、0.997，且始终只有一个 outline 项处于 current 状态。
+- JavaScript disabled：5 个 Mermaid block 均未出现 `data-processed`，`flowchart TD`、`stateDiagram-v2` 与 `sequenceDiagram` 原始 DSL 可见，5 条 caption 保留。
+- GitHub Pages base：production preview 中检查到的绝对站内资源与导航链接均保留 `/multica-learning/` 前缀。
+- 阅读统计：页面显示 `4,808 字，含 68 行代码，约 27 分钟`；15 行 production SQL 与新增教学伪代码计入源码行数，Mermaid DSL 仍被排除；`npm test` 通过，统计结果可确定复现。
+- 本地命令：`npm ci`、`npm run check`、`npm test`、`npm run build`、`git diff --check` 均通过。build 成功生成 3 个静态页面；现有 bundler directive 与 chunk-size warning 未影响输出。
+
+构建成功只证明语法兼容；前述证据审查才是图的技术正确性依据。
