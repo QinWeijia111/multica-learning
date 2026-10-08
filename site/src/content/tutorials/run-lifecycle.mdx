@@ -37,7 +37,7 @@ flowchart TD
     human -->|分配 Issue| server
     server <-->|读写可靠事实| state
     server -->|提醒有工作| daemon
-    daemon -->|请求领取 / 回传结果| server
+    daemon -->|请求领取| server
     daemon -->|准备工作环境| files
     daemon -->|选择并调用| adapter
     adapter -->|启动 Coding Agent| agent
@@ -175,7 +175,7 @@ if 候选存在:
 1. `FOR UPDATE SKIP LOCKED`
 2. `status = 'dispatched'`
 
-以下代码来自固定基线中的 `ClaimAgentTask`。为了只展示认领骨架，runtime 健康度、当前绑定和串行约束等中间资格条件被折叠成一行明确的教程省略标记；其余代码保持上游原样。
+以下代码来自固定基线中的 `ClaimAgentTask`。为了只展示认领骨架，runtime 健康度、当前绑定和串行约束等中间资格条件被折叠成一行明确的教程省略标记；除明确标出的教程省略行外，其余展示行保持固定上游基线原样。
 
 ```sql
 UPDATE agent_task_queue

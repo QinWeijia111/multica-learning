@@ -26,9 +26,9 @@
 
 ### Evidence
 
-- **Major semantic relationships:** Research Question 与 Findings B–E 验证了 Server 持久任务、Server 向 Daemon 发出 best-effort wakeup、Daemon 主动请求 claim、Daemon 回传结果、Daemon 在本地准备环境以及 provider/backend 启动 Coding Agent 的边界。Source Map 中 `TaskService`、`agent_task_queue`、`NotifyTaskAvailable`、`claimTasksWSFirst`、Daemon `runTask` / `reportTaskResult`、`agent.Backend` 与 `codexBackend` 支持这些职责。
-- **Collapsed implementation steps:** 图把 `UpdateIssue`、入队、wakeup、WS-first/HTTP claim、start、provider resolution 与结果 endpoint 折叠为架构关系；这些精确步骤没有被声明为图中节点。Server → Daemon 只标“提醒有工作”，Daemon → Server 则合并“请求领取 / 回传结果”，避免把通知画成任务所有权 push。
-- **Label policy:** “协调与持久状态”“提醒有工作”“请求领取 / 回传结果”“本地执行”“准备工作环境”“启动 Coding Agent”“本地代码与文件”是读者侧语义标签，故意不等同于真实 symbol。
+- **Major semantic relationships / edge evidence:** Research Question 与 Findings B–E 验证了 Server 持久任务、Server 向 Daemon 发出 best-effort wakeup、Daemon 主动请求 claim、Daemon 独立回传过程与结果、Daemon 在本地准备环境以及 provider/backend 启动 Coding Agent 的边界。Source Map 中 `TaskService`、`agent_task_queue`、`NotifyTaskAvailable`、`claimTasksWSFirst`、Daemon `runTask` / `reportTaskResult`、`agent.Backend` 与 `codexBackend` 支持这些职责和方向。
+- **Collapsed implementation steps:** 图把 `UpdateIssue`、入队、wakeup、WS-first/HTTP claim、start、provider resolution 与结果 endpoint 折叠为架构关系；这些精确步骤没有被声明为图中节点。三条跨边界语义保持分开：Server → Daemon 只标“提醒有工作”，Daemon → Server 的 claim 边只标“请求领取”，结果路径继续由另一条 Daemon → Server 的“回传过程与结果”表达，避免把 wakeup、claim 与 result reporting 混在一起。
+- **Label policy:** “协调与持久状态”“提醒有工作”“请求领取”“回传过程与结果”“本地执行”“准备工作环境”“启动 Coding Agent”“本地代码与文件”是读者侧语义标签，故意不等同于真实 symbol。
 - **Uncertainty preserved:** 未展示完整 Control Plane/Execution Plane、Redis relay、heartbeat/retry、`execenv.Prepare` 内部、全部 provider 或 UI fanout。
 
 ### Validation
