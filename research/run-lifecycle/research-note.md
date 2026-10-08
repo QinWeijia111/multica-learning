@@ -10,7 +10,7 @@ When a Multica Issue is assigned to an Agent and execution is started, how does 
 
 - Repository: `multica-ai/multica`
 - Commit: `b4ca5b4a23e68b26292a680dca7689a952bb1cd5`
-- Checked out state or relevant environment: clean managed checkout at the full commit above; source was inspected read-only on 2026-10-06. No upstream files, branches, or remotes were modified.
+- Checked out state or relevant environment: clean managed checkout at the full commit above; source was inspected read-only on 2026-10-06, with the claim/capacity path rechecked on 2026-10-08. No upstream files, branches, or remotes were modified.
 
 ## Scope
 
@@ -88,7 +88,7 @@ When a Multica Issue is assigned to an Agent and execution is started, how does 
   commit: "b4ca5b4a23e68b26292a680dca7689a952bb1cd5"
   file: server/internal/daemon/daemon.go
   symbol: (*Daemon).pollLoop and (*Daemon).runBatchPoller
-  role: "Consumes task wakeups and runtime-set changes, reserves local slots before claim, periodically safety-polls, and hands claimed tasks to handleTask"
+  role: "Consumes task wakeups and runtime-set changes, reserves daemon-local execution slots before sending a claim request, releases every unused slot after an empty or partial response, periodically safety-polls, and hands claimed tasks to handleTask"
   evidence: SOURCE
 - repository: multica-ai/multica
   commit: "b4ca5b4a23e68b26292a680dca7689a952bb1cd5"
@@ -100,13 +100,13 @@ When a Multica Issue is assigned to an Agent and execution is started, how does 
   commit: "b4ca5b4a23e68b26292a680dca7689a952bb1cd5"
   file: server/internal/service/task.go
   symbol: (*TaskService).ClaimTasksForRuntimes and (*TaskService).claimTask
-  role: "Applies runtime/agent capacity and freshness gates and performs claim side effects across the daemon's runtime set"
+  role: "Routes batch candidates through the runtime-scoped claim helper; claimTask locks the Agent row, checks runtime binding and CountRunningTasks against agent.MaxConcurrentTasks, then invokes ClaimAgentTask"
   evidence: SOURCE
 - repository: multica-ai/multica
   commit: "b4ca5b4a23e68b26292a680dca7689a952bb1cd5"
   file: server/pkg/db/queries/agent.sql
   symbol: ClaimAgentTask
-  role: "Atomically changes one eligible row from queued to dispatched with FOR UPDATE SKIP LOCKED, serialization, binding, online, and heartbeat-freshness predicates"
+  role: "Selects and locks one eligible queued row with runtime binding, online, heartbeat-freshness, wakeup, and serialization predicates, then atomically changes it to dispatched; it does not enforce the Agent concurrency limit"
   evidence: SOURCE
 - repository: multica-ai/multica
   commit: "b4ca5b4a23e68b26292a680dca7689a952bb1cd5"
@@ -183,12 +183,14 @@ PUT /api/issues/{id}
   [SOURCE: notification is best-effort acceleration]
 → daemon taskWakeupLoop/pollLoop → runBatchPoller
   [SOURCE: wakeup-triggered and periodic safety polling]
+→ reserve one or more daemon-local execution slots from sem
+  [SOURCE: local slot reservation precedes the claim request]
 → claimTasksWSFirst → WS RPC tasks.claim, else POST /api/daemon/tasks/claim
   [SOURCE]
 → Handler.ClaimTasksByRuntime → TaskService.ClaimTasksForRuntimes → claimTask
-  [SOURCE]
+  [SOURCE: lock Agent row; validate runtime binding; CountRunningTasks vs agent.MaxConcurrentTasks]
 → ClaimAgentTask atomically queued → dispatched
-  [SOURCE]
+  [SOURCE: database candidate predicates, row locking, serialization, and state transition]
 → daemon handleTask → runTask → execenv.Prepare/Reuse
   [SOURCE]
 → POST /api/daemon/tasks/{taskId}/start → StartTaskForClaim
@@ -233,11 +235,21 @@ PUT /api/issues/{id}
 
 2. **The daemon still claims from server state.** A wakeup nudges `pollLoop`; the same loop also wakes on runtime-set changes and periodically polls as a missed-event safety net. With negotiated RPC support, `claimTasksWSFirst` calls `tasks.claim` over the existing daemon WebSocket. It falls back to `POST /api/daemon/tasks/claim` on safe transport/server failures, with a legacy per-runtime HTTP route for old servers. **`SOURCE`**
 
-3. **Local capacity is reserved before claiming.** `runBatchPoller` obtains daemon-wide task slots, then requests at most that many rows. This avoids leaving server rows in `dispatched` when the daemon has no local execution capacity. **`SOURCE`**
+3. **Daemon local execution capacity is reserved before the claim request.** On the inspected `runBatchPoller` path, receiving indices from the local `sem` reserves one or more daemon-wide task slots, bounded by `d.cfg.MaxConcurrentTasks`; only afterward does the daemon call `claimTasksWSFirst` with `len(slots)` as the maximum requested row count. This local admission step prevents this daemon from claiming more work than it has local execution slots for. If the server returns no tasks, `dispatched` remains zero and `releaseSlots(slots[dispatched:])` returns every reserved slot to `sem`; a partial response similarly releases only the unused tail. This is a daemon-local mechanism, not the Server-side per-Agent concurrency limit. **`SOURCE`**
 
-4. **Claim is a database state transition, not receipt of a WebSocket push.** `ClaimAgentTask` uses an atomic `UPDATE ... SET status='dispatched', dispatched_at=now()` around a `FOR UPDATE SKIP LOCKED` candidate query. Eligibility includes queued state, matching `agent_id` and persisted `runtime_id`, current Agent→runtime binding, runtime online status, fresh `last_seen_at`/`updated_at`, agent concurrency, and per-(issue, agent) serialization. **`SOURCE`**
+4. **Server-side Agent concurrency is enforced in `(*TaskService).claimTask`, before the SQL claim.** Inside one service transaction, `GetAgentForClaimUpdate` locks the Agent row, the method resolves and validates the runtime binding, and `CountRunningTasks` counts that Agent's `dispatched`, `running`, and `waiting_local_directory` rows. If the count is at least `agent.MaxConcurrentTasks`, `claimTask` returns without invoking `ClaimAgentTask`; otherwise it calls `ClaimAgentTask`. This per-Agent limit is distinct from the daemon-wide local semaphore. **`SOURCE`**
 
-5. **Heartbeat freshness participates directly in claim eligibility.** The query requires a fresh runtime record, while docs describe regular daemon heartbeats and periodic polling as the recovery/backstop mechanism. **`SOURCE + DOCS`**
+5. **`ClaimAgentTask` owns database candidate eligibility, locking, serialization, and the atomic state transition—not the Agent concurrency limit.** Its candidate query requires `queued`, matching `agent_id` and persisted `runtime_id`, a still-current Agent→runtime binding, an online runtime with fresh `last_seen_at`/`updated_at`, a valid wakeup revision when applicable, and no conflicting active row under its per-(issue, agent), chat-session, or quick-create serialization rules. `FOR UPDATE SKIP LOCKED` locks the selected candidate without waiting on an already locked candidate; the outer `UPDATE` writes `status='dispatched'`, `dispatched_at`, and the prepare lease atomically. No predicate in this SQL compares active task count with `agent.max_concurrent_tasks`. **`SOURCE`**
+
+The claim path therefore has three separate admission layers:
+
+| Layer | Enforced by | Verified responsibility |
+| --- | --- | --- |
+| Daemon local capacity | `server/internal/daemon/daemon.go`, `(*Daemon).runBatchPoller` | Reserve local `sem` slots before sending a claim request; release slots not paired with returned tasks |
+| Server-side Agent concurrency | `server/internal/service/task.go`, `(*TaskService).claimTask` | Lock the Agent row; compare `CountRunningTasks` with `agent.MaxConcurrentTasks`; only then call the SQL claim |
+| Database claim eligibility and ownership transition | `server/pkg/db/queries/agent.sql`, `ClaimAgentTask` | Filter an eligible queued candidate, apply row locking and serialization predicates, and atomically write `queued → dispatched` |
+
+6. **Heartbeat freshness participates directly in database claim eligibility.** `ClaimAgentTask` requires a fresh runtime record, while docs describe regular daemon heartbeats and periodic polling as the recovery/backstop mechanism. **`SOURCE + DOCS`**
 
 ### D. Daemon-side preparation and start transition
 
@@ -307,7 +319,9 @@ The task lifecycle is separate from Issue status. Completion does not automatica
 | Notification is best-effort; claim/polling preserves liveness | `SOURCE + DOCS` | `server/internal/service/task.go`, `notifyRuntimeMayHaveWork`; `server/internal/daemonws/hub.go`, `NotifyTaskAvailable`; `server/internal/daemon/daemon.go`, `runBatchPoller`; daemon runtime docs | This note does not quantify loss/reconnect timing experimentally |
 | WebSocket notification is not the claim itself | `SOURCE` | Wakeup path only nudges poller; `ClaimAgentTask` performs `queued → dispatched` | Terminology can be confused because WS also supports the separate `tasks.claim` RPC |
 | Claims are WS-RPC first, HTTP fallback, with periodic safety polling | `SOURCE` | `server/internal/daemon/wsrpc.go`, `claimTasksWSFirst`; `server/internal/daemon/client.go`, `claimTasksWithHints`; `server/internal/daemon/daemon.go`, `taskClaimPollInterval` | Legacy-server compatibility details are summarized only |
-| Claim requires current binding, online runtime, fresh heartbeat, capacity, and serialization eligibility | `SOURCE` | `server/pkg/db/queries/agent.sql`, `ClaimAgentTask`; `server/internal/service/task.go`, `claimTask` | Full recovery and timeout rules excluded |
+| Daemon local slots are reserved before claim and unused slots are released after an empty or partial response | `SOURCE` | `server/internal/daemon/daemon.go`, `(*Daemon).runBatchPoller`, `waitForTaskSlot`, `drainAvailableSlots`, and `releaseSlots` | Verified for the current machine-level batch poller path; not asserted as a universal property of every historical or alternate claim path |
+| Agent concurrency is checked in the Server service before SQL claim | `SOURCE` | `server/internal/service/task.go`, `(*TaskService).claimTask`; `server/pkg/db/queries/agent.sql`, `GetAgentForClaimUpdate` and `CountRunningTasks` | This is the per-Agent `agent.MaxConcurrentTasks` limit, not daemon-local execution capacity |
+| SQL claim requires queued state, binding, online/fresh runtime, wakeup validity when applicable, and serialization eligibility | `SOURCE` | `server/pkg/db/queries/agent.sql`, `ClaimAgentTask` | `ClaimAgentTask` does not enforce the Agent concurrency limit; full recovery and timeout rules remain excluded |
 | Environment preparation precedes `running` | `SOURCE` | `server/internal/daemon/daemon.go`, `runTask`; `server/internal/daemon/execenv/execenv.go`, `Prepare`; `server/internal/service/task.go`, `StartTaskForClaim` | Preparation internals are summarized rather than individually traced |
 | `agent.Backend` is the provider execution abstraction | `SOURCE` | `server/pkg/agent/agent.go`, `Backend`, `New`; `server/internal/daemon/daemon.go`, `agent.ResolveBackend` call | Some built-in runtime identities resolve through `NewRuntime` rather than `New` directly |
 | Codex launches `codex app-server --listen stdio://` | `SOURCE` | `server/pkg/agent/codex.go`, `codexBackend`, `buildCodexArgs`, `Execute`, `executeOnce` | Codex protocol/session behavior beyond process entry is excluded |
@@ -341,6 +355,8 @@ No runtime experiment was necessary. Static source inspection closed the request
 
 - Teach **Run** as the product concept and immediately map it to the current internal `agent_task_queue`/Task terminology so readers can search source without assuming there is a `Run` type.
 - Show notification and claiming as distinct steps: the server persists first, sends a best-effort wakeup second, and the daemon claims authoritative database state over WS RPC or HTTP with polling as a safety net.
+- For MUST_FIX 1, show the inspected `runBatchPoller` order as **reserve daemon-local slot(s) → send claim request → pair returned task(s) with slots**. If claim returns no task, show the reserved local slots being returned; for a partial batch, only unused slots are returned. Keep this scoped to the current batch-poller path rather than claiming a platform-wide invariant.
+- For MUST_FIX 2, do not describe Agent concurrency as an omitted `ClaimAgentTask` predicate. Explain that `(*TaskService).claimTask` first compares `CountRunningTasks` with `agent.MaxConcurrentTasks`, while `ClaimAgentTask` separately performs database candidate filtering, `FOR UPDATE SKIP LOCKED`, serialization, and the atomic `queued → dispatched` write.
 - Explain that runtime selection is normally inherited from the assigned Agent and persisted on the task; it is not a generic work-stealing queue across machines.
 - Use the verified state model `queued → dispatched → running → completed|failed`, with `waiting_local_directory` and `deferred` presented as explicit optional branches rather than universal stages.
 - Emphasize that the daemon creates the environment before acknowledging `running`; this is an important correctness boundary, not incidental setup.
