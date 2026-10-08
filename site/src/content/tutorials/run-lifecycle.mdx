@@ -59,14 +59,14 @@ Multica 也不替代 Codex、Claude Code 或其他 Coding Agent。Daemon 先走�
 
 ## 一项工作怎样跑完全程
 
-假设你把一个普通 Issue 分配给一个已配置好 runtime 的 Agent，并选择开始执行。先不要看源码，整段旅程只有八步：
+假设你把一个普通 Issue 分配给一个已配置好 runtime 的 Agent，并选择开始执行。这里的 runtime 可以先理解为 Agent 绑定的一份执行端注册与配置：本地 Daemon 承载它的执行能力，但 runtime 不等于 Daemon 进程本身。先不要看源码，整段旅程只有八步：
 
 1. 用户把 Issue 分配给 Agent。
 2. Server 把“需要执行这件事”保存成待执行任务。
 3. Server 提醒目标机器：有新工作可以检查。
 4. Daemon 被提醒，或在下一次主动检查时发现工作。
-5. Daemon 向 Server 请求领取；Server 成功确认后，它才获得执行权。
-6. Daemon 在本地预留容量，并准备仓库、工作目录和执行环境。
+5. 在本章研究的普通 `runBatchPoller` 路径上，Daemon 先预留本地执行容量，再向 Server 请求领取；Server 成功确认后，它才获得执行权。
+6. 领取成功后，Daemon 准备或复用仓库、工作目录和执行环境。
 7. Multica 根据 Agent 的 runtime/provider 配置启动 Codex。
 8. 执行消息、进度和最终结果经 Daemon 返回 Server。
 
@@ -77,8 +77,8 @@ flowchart TD
     assign["1. 分配 Issue"] --> save["2. 保存待执行任务"]
     save --> notify["3. 提醒目标机器"]
     notify --> discover["4. Daemon 发现工作"]
-    discover --> claim["5. Server 确认执行权"]
-    claim --> prepare["6. 准备本地执行环境"]
+    discover --> claim["5. 预留容量并请求领取<br/>Server 确认执行权"]
+    claim --> prepare["6. 准备 / 复用本地执行环境"]
     prepare --> launch["7. 启动 Coding Agent"]
     launch --> report["8. 回传过程与结果"]
 ```
@@ -109,14 +109,16 @@ flowchart TD
 任务 = 保存待执行工作()
 提醒目标机器(任务)
 
-while Daemon 有可用容量:
+while Daemon 可以预留本地执行容量:
+    本地执行槽 = 预留本地执行容量()
     任务 = 尝试领取工作()
 
     if 没有领到:
+        释放未使用的本地执行槽(本地执行槽)
         等待通知或下一次检查
         continue
 
-    准备本地执行环境(任务)
+    准备或复用本地执行环境(任务)
     标记任务开始运行(任务)
     启动已配置的 Coding Agent(任务)
     回传过程与最终结果(任务)
@@ -197,7 +199,7 @@ RETURNING *;
 
 `FOR UPDATE` 表示“这条候选记录接下来要被修改，先把它锁住”；`SKIP LOCKED` 表示“如果另一位领取者已经锁住某条候选，就跳过它，而不是同时拿走它”。外层 `UPDATE` 再把成功选中的记录写成 `dispatched`。选择候选与写入新状态位于同一条 SQL 语句中，这就是本章所说的原子所有权边界。
 
-完整查询还会检查 runtime 绑定、在线与心跳条件、并发容量和同一 Issue/Agent 的串行约束。这里不展示这些条件，是因为它们不会改变此刻要观察的两件事：并发领取者怎样避开已锁候选，以及成功者怎样把执行权写进持久状态。
+完整 SQL 还包含 runtime 绑定、online / heartbeat freshness、wakeup 有效性和串行约束等候选条件。Agent 并发上限不在这条 SQL 的 predicate 中：外层 `TaskService.claimTask` 会先比较 `CountRunningTasks` 与 `agent.MaxConcurrentTasks`，有容量才调用 `ClaimAgentTask`。更早发生的 Daemon 本地 slot 预留则是另一层容量控制。这里省略这些条件，是为了聚焦观察两件事：并发领取者怎样避开已锁候选，以及成功者怎样把执行权写进持久状态。
 
 > 源码坐标：`server/pkg/db/queries/agent.sql` 的 `ClaimAgentTask`，上游 commit `b4ca5b4a23e68b26292a680dca7689a952bb1cd5`。
 
@@ -223,7 +225,7 @@ Daemon 优先通过现有 WebSocket 发起 `tasks.claim` RPC，安全失败时�
 
 因为“Server 已经把任务交给这台机器”和“这台机器已经准备好运行”是两个时刻。
 
-Daemon 会先预留本地 task slot，再向 Server 请求领取。这条顺序很重要：如果本地容量已经满了，就不应先把服务端任务变成 `dispatched`。领取成功后，Daemon 还要根据任务的 `RuntimeID` 找到本地 provider，并由 `execenv.Prepare` 或复用路径准备工作目录和执行环境。
+在本章研究的普通 `runBatchPoller` 路径上，Daemon 会先预留本地 task slot，再向 Server 请求领取。这条顺序很重要：如果本地容量已经满了，就不应先把服务端任务变成 `dispatched`；如果 claim 没有返回足够任务，未使用的 slot 会被释放。领取成功后，Daemon 还要根据任务的 `RuntimeID` 找到本地 provider，并由 `execenv.Prepare` 或复用路径准备工作目录和执行环境。
 
 只有环境准备完成，Daemon 才调用 start endpoint。Server 的 `StartTaskForClaim` 会核对这一次 claim 的 `runtime_id` 与 `dispatched_at`，再把 `dispatched` 改成 `running`。因此本章里的 `running` 更接近“本地环境已经准备好，可以执行”，而不是“刚刚收到了一条消息”。
 
@@ -276,16 +278,16 @@ Codex 子进程通过 stdin/stdout 上的 JSON-RPC 2.0 与 backend 通信。这�
 ```text
 一次执行的生命周期：queued → dispatched → running → completed | failed
 
-Issue 的协作流程：    todo → in_progress → in_review → done
+一种典型的 Issue 协作路径：todo → in_progress → in_review → done
 ```
 
-task 的 `completed` 只表示这次 Agent 执行结束；它不会机械地把 Issue 改成 `done`。Coding Agent 会按工作流通过 CLI 更新 Issue，最终验收仍属于协作流程。反过来说，一个 Issue 也可能经历多次执行，不能用一条 task 状态替代整个协作状态。
+task 的 `completed` 只表示这次 Agent 执行结束；它不会机械地把 Issue 改成 `done`。上面的 Issue 状态链只是示例，不是 Multica 全局固定状态机：workspace 可以配置或增加自定义 Issue status，具体 Issue 也不保证逐项经过示例中的全部状态。Coding Agent 会按所在 workspace 的工作流通过 CLI 更新 Issue，最终验收仍属于协作流程。反过来说，一个 Issue 也可能经历多次执行，不能用一条 task 状态替代整个协作状态。这里并列两条路径，只是为了说明 task execution lifecycle 与 Issue collaboration lifecycle 是两套独立的状态模型。
 
 本章的证据只覆盖到 Server 已提交的任务状态与生命周期事件；事件如何完整传播到所有实时 UI，不在当前研究范围内。
 
 ## 回到整张架构图
 
-现在再看同一套系统，中间步骤已经有了含义：Server 先保存可恢复事实，再用通知加速；Daemon 通过认领获得执行权，在本地容量和环境就绪后跨过 provider 边界；Coding Agent 修改本地代码；Daemon 最后把过程与结果送回 Server。
+现在再看同一套系统，中间步骤已经有了含义：Server 先保存可恢复事实，再用通知加速；在本章研究的普通 `runBatchPoller` 路径上，Daemon 先预留本地 slot，再通过认领获得执行权，随后准备或复用执行环境；Coding Agent 修改本地代码；Daemon 最后把过程与结果送回 Server。
 
 <figure>
 
@@ -300,10 +302,13 @@ sequenceDiagram
     H->>S: 分配 Issue
     S->>DB: 保存待执行工作
     S-->>D: 提醒有新工作
+    D->>D: 预留本地执行 slot
     D->>S: 请求领取
     S->>DB: 原子确认执行权
     S-->>D: 返回已领取任务
-    D->>D: 预留容量并准备环境
+    D->>D: 准备 / 复用执行环境
+    D->>S: 环境就绪，请求 start
+    S->>DB: 写入 running
     D->>A: 通过 provider 启动
     A->>A: 修改本地代码与文件
     A-->>D: 输出消息与结果
@@ -311,7 +316,7 @@ sequenceDiagram
     S->>DB: 保存生命周期结果
 ```
 
-<figcaption><strong>TEACHING · 架构综合：</strong>Server 侧保存协调事实，本地侧完成真实执行；<em>保存、提醒、领取</em>是三个不同动作。图折叠了具体 API、函数和兼容分支。</figcaption>
+<figcaption><strong>TEACHING · 架构综合：</strong>Server 侧保存协调事实，本地侧完成真实执行；本章研究的普通 <code>runBatchPoller</code> 路径先预留本地 slot，再请求领取，claim 成功后才准备环境。图折叠了具体 API、函数和兼容分支。</figcaption>
 
 </figure>
 

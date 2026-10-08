@@ -49,8 +49,8 @@
 
 ### Evidence
 
-- **Major semantic relationships:** Research Note 的 Execution / Call Chain 逐步支持分配、持久化、通知、Daemon 发现、claim、环境准备、provider 执行和回传。
-- **Collapsed implementation steps:** “保存”折叠 `CreateAgentTask` 与 queued event；“提醒”折叠 cache bump 与 `NotifyTaskAvailable`；“发现/领取”折叠 wakeup、polling、WS-first/HTTP fallback 与 Server claim；“回传”折叠 messages/progress/complete/fail endpoints。
+- **Major semantic relationships:** Research Note 的 Execution / Call Chain 逐步支持分配、持久化、通知、Daemon 发现、普通 `runBatchPoller` 路径在 claim 前预留本地 slot、Server claim、环境准备、provider 执行和回传。
+- **Collapsed implementation steps:** “保存”折叠 `CreateAgentTask` 与 queued event；“提醒”折叠 cache bump 与 `NotifyTaskAvailable`；第 5 步折叠本地 slot reservation、WS-first/HTTP claim 与 Server ownership confirmation，但保持“slot reservation → claim”的顺序；第 6 步只折叠 claim 成功后的环境准备 / 复用；“回传”折叠 messages/progress/complete/fail endpoints。
 - **Label policy:** 八个标签故意使用动作语义，而不是 `UpdateIssue`、`ClaimAgentTask`、`ResolveBackend` 等准确 symbol。精确坐标保留在附录。
 - **Uncertainty preserved:** 只画普通直接分配 happy path；未加入 `waiting_local_directory`、`deferred`、retry、stale claim 或完整失败恢复。
 
@@ -72,7 +72,7 @@
 
 ### Evidence
 
-- **Major semantic relationships:** Finding C.1 验证持久任务先于 best-effort wakeup；C.2 验证 wakeup 与周期 polling 都促使检查；C.4 验证 `ClaimAgentTask` 的 `queued → dispatched` 才是数据库所有权边界。
+- **Major semantic relationships:** Finding C.1 验证持久任务先于 best-effort wakeup；C.2 验证 wakeup 与周期 polling 都促使检查；C.5 验证 `ClaimAgentTask` 的 `queued → dispatched` 才是数据库所有权边界。
 - **Collapsed implementation steps:** “Server 原子确认”折叠 WS RPC/HTTP transport、service eligibility checks 与 `ClaimAgentTask` SQL；“继续等待或检查”只表示没有取得本次执行权，不声明具体 retry 策略。
 - **Label policy:** 主视觉只保留“工作事实 / 提醒 / 请求领取 / 原子确认 / 执行权”。`NotifyTaskAvailable`、`tasks.claim` 与 `ClaimAgentTask` 在正文和附录映射。
 - **Uncertainty preserved:** 未绘制通知丢失概率、polling 间隔、完整心跳/离线恢复、stale dispatch 或自动 retry。
@@ -118,17 +118,17 @@
 
 ### Evidence
 
-- **Major semantic relationships:** Research Note 的完整 Execution / Call Chain 支持 Human/Web 入口、Server 持久任务、wakeup、Daemon claim、Server 数据库确认、本地准备、provider/Codex 执行、消息/终态回传与 Server 终态写入的顺序。
-- **Collapsed implementation steps:** Server 与 PostgreSQL 之间的边折叠 handler/service/SQL；Daemon 内部步骤折叠 slot reservation、runtime lookup、`execenv.Prepare` 与 start；“通过 provider 启动”折叠 `ResolveBackend` 和具体 Codex backend。
+- **Major semantic relationships:** Research Note 的完整 Execution / Call Chain 支持 Human/Web 入口、Server 持久任务、wakeup，以及普通 `runBatchPoller` 路径中的“Daemon 预留本地 slot → 发出 claim → Server 数据库确认 ownership → claim 成功后准备 / 复用环境 → start → `running` → provider/Codex 执行 → 消息/终态回传 → Server 终态写入”。
+- **Collapsed implementation steps:** Server 与 PostgreSQL 之间的边折叠 handler/service/SQL；“预留本地执行 slot”折叠 `runBatchPoller` 的 semaphore 操作，“准备 / 复用执行环境”折叠 runtime lookup 与 `execenv.Prepare` / reuse，“环境就绪，请求 start → 写入 running”折叠 start endpoint 与 `StartTaskForClaim`；“通过 provider 启动”折叠 `ResolveBackend` 和具体 Codex backend。图明确把 slot reservation 与 claim 后的 environment preparation 画成两个阶段，不再使用 `claim → local slot reservation` 的错误顺序。
 - **Label policy:** participant 与消息均使用中文职责语义；它们是教学角色，不声称对应单一 process/type。Coding Agent 自循环的“修改本地代码与文件”表示执行侧行为，不表示独立 Server 调用。
-- **Uncertainty preserved:** 图不展开协议 fallback、失败/retry、完整环境内容、terminal callback durability 或 UI fanout。
+- **Uncertainty preserved:** slot-before-claim 只限定于当前研究确认的普通 `runBatchPoller` 路径，不扩张为所有 Multica 执行路径的全局保证；图不展开协议 fallback、失败/retry、完整环境内容、terminal callback durability 或 UI fanout。
 
 ### Validation
 
 - Mermaid render：production build 与三个目标 viewport 均成功渲染，无 error state。
 - Mobile/readability：五个 participant 在 390px 仍缩放到图容器内，无页面级 overflow；无 JavaScript 时原始 DSL 可读。
 - Exact identifiers：图不使用源码 symbol；准确调用链紧随文末附录。
-- Text fallback：图前后段落完整复述“保存、提醒、领取、准备、执行、回传”。
+- Text fallback：图前后段落完整复述“保存、提醒、预留本地 slot、领取、准备、start / running、执行、回传”。
 - **Reviewer verdict:** `PASS`（Tutorial Writer 自审；仍需 human teaching-quality review）。
 
 ## Validation record
@@ -139,7 +139,7 @@
 - 阅读进度与 outline：在三个 viewport 滚动到页面底部后，`--reading-progress` 分别约为 0.995、0.993、0.997，且始终只有一个 outline 项处于 current 状态。
 - JavaScript disabled：5 个 Mermaid block 均未出现 `data-processed`，`flowchart TD`、`stateDiagram-v2` 与 `sequenceDiagram` 原始 DSL 可见，5 条 caption 保留。
 - GitHub Pages base：production preview 中检查到的绝对站内资源与导航链接均保留 `/multica-learning/` 前缀。
-- 阅读统计：页面显示 `4,536 字，含 66 行代码，约 25 分钟`；新增的 15 行 production SQL 计入源码行数，Mermaid DSL 仍被排除；`npm test` 通过，统计结果可确定复现。
+- 阅读统计：页面显示 `4,808 字，含 68 行代码，约 27 分钟`；15 行 production SQL 与新增教学伪代码计入源码行数，Mermaid DSL 仍被排除；`npm test` 通过，统计结果可确定复现。
 - 本地命令：`npm ci`、`npm run check`、`npm test`、`npm run build`、`git diff --check` 均通过。build 成功生成 3 个静态页面；现有 bundler directive 与 chunk-size warning 未影响输出。
 
 构建成功只证明语法兼容；前述证据审查才是图的技术正确性依据。
