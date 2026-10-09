@@ -1,101 +1,95 @@
 ---
 name: repository-workflow
-description: Coordinate repository changes that originate from Multica work, from issue review and Git branching through pull request handoff. Use whenever an agent modifies files in a Git repository for a Multica issue or project task.
+description: Coordinate repository changes from a Multica issue through branch, pull request, CI, human merge, and conditional deployment, including shared canonical chapter PRs.
 ---
 
 # Repository Workflow
 
-Follow this path for repository changes initiated from Multica:
+## Select the workflow mode
 
-`Multica Issue -> Agent Run -> Git branch -> Pull Request -> GitHub Actions CI -> Human Review -> Squash merge -> [if deployable: CD and production verification] -> Delivery complete`
+Inspect the task context before creating a branch or PR.
 
-The post-merge stage is conditional. Research notes, Skills, documentation-only changes, and other non-deployable work may end at merge. Do not invent a deployment stage when the repository has none.
+### Ordinary task mode
 
-## Prepare the work
+Use one focused branch and one PR for the assigned issue. Follow:
 
-1. Read the current Multica issue carefully.
-2. Identify its issue key, such as `MUL-123`.
-3. Inspect the project's repository resource.
-4. Inspect the current Git state before modifying anything.
-5. Reuse an appropriate Multica-prepared checkout, worktree, or branch instead of creating an unnecessary clone.
+`Multica Issue → feature branch → PR → CI → human review → human merge → conditional CD / production verification`
 
-If the work is issue-based but the issue key cannot be determined, do not invent one. Ask for clarification or explicitly report that automatic pull request linking cannot be guaranteed.
+### Shared chapter PR mode
 
-Read [references/multica-github-linking.md](references/multica-github-linking.md) before naming a branch or opening a pull request. Use [templates/pull-request.md](templates/pull-request.md) as the pull request body starting point.
+Use this mode when chapter coordination supplies or establishes `parent_issue_key`, `chapter_branch`, or `chapter_pr`. The delivery unit is:
 
-## Work on a branch
+`Parent Chapter Issue → shared chapter branch → canonical Draft PR → research → tutorial → review / fixes → PASS → one human merge`
 
-- Never push directly to `main` for normal feature work.
-- Use the existing issue-specific branch when Multica created one.
-- Otherwise create a focused feature branch from the intended base.
-- When creating a branch, include the lowercase Multica issue key, for example `mul-123-add-source-map`.
+- Reuse the supplied Parent Issue, branch and PR; never create a role-specific branch or PR.
+- If the canonical PR does not yet exist, the first repository-producing worker creates the shared branch; Source Analyst opens one Draft PR after the first useful research commit.
+- Later workers fetch / check out the exact shared branch, verify the PR head, commit only their bounded stage changes, and push to that same branch.
+- No intermediate merge marks stage completion. Use the structured Parent Issue handoff from `book/LEARNING_SQUAD.md`.
+- `FOCUSED_DELTA` review and its fixes remain on the same PR.
+- Preserve ordinary one-task-one-PR behavior when shared chapter fields are absent.
 
-## Commit focused changes
+## Prepare
 
-- Make focused, meaningful commits.
-- Do not commit generated build output unless the repository explicitly requires it.
-- Check `git status` before and after the work.
-- Do not rewrite unrelated history.
+1. Read the current Multica issue and determine its real key.
+2. Read repository `AGENTS.md` and `ROADMAP.md`, then route to the smallest task-specific authority.
+3. Inspect Git status, remotes, current branch and any existing PR before editing.
+4. Reuse the prepared checkout and, in chapter mode, the canonical branch / PR.
+5. Read `references/multica-github-linking.md` before naming a new branch or opening a PR.
 
-## Validate locally
+Never invent an issue key or change the intended base silently. Treat upstream `multica-ai/multica` as read-only for Multica Learning work.
 
-- Run deterministic checks relevant to the changed files before opening a pull request.
-- For changes under `site/`, run `npm ci` when dependencies must be reproduced, then run `npm run check` and `npm run build`.
-- Run `git diff --check`.
-- Report failures instead of hiding them.
-- Treat local validation as evidence about the checkout only. It is not proof that pull-request CI passed or that production deployed successfully.
+## Branch and commits
 
-## Determine deployment impact
+- Never push normal feature work directly to `main`.
+- New ordinary branches and chapter branches include the lowercase issue key.
+- In chapter mode, verify `chapter_branch` rather than creating a “cleaner” replacement.
+- Make small, meaningful commits and do not rewrite unrelated history.
+- Do not commit generated build output unless the repository requires it.
 
-Before opening or handing off a pull request, inspect the repository's actual workflows and deployment configuration. Classify the change as one of:
+## Validate
 
-- **No deployment impact**: no deployed artifact, service, or deployment mechanism is affected.
-- **Deployment expected after merge**: the repository already deploys the affected artifact after changes reach its deployment branch.
-- **Deployment behavior changed by this PR**: the change modifies the workflow or configuration that controls deployment.
+Run deterministic checks relevant to the change. For Multica Learning, the normal pre-handoff set is:
 
-Record the classification in the pull request. When deployment is expected, name the responsible workflow or mechanism if the repository identifies one, and state the smallest useful post-merge production checks. Keep these checks specific to the changed behavior; do not turn the pull request into a release plan.
+```bash
+git diff --check
+cd site
+npm run check
+npm test
+npm run build
+```
 
-Keep the evidence boundaries explicit:
+Local results validate only the checkout. CI validates the PR. CD can run only after an eligible merge, and production verification requires observing the deployed result.
 
-- Local checks validate the working tree before the pull request.
-- CI validates the proposed change before merge.
-- CD delivers an eligible change after it reaches the configured deployment branch.
-- Production verification checks the deployed result after CD completes.
+## Deployment impact
 
-Do not use a successful local build or CI run as evidence that a change is deployed, live, or production verified.
+Classify each PR as:
 
-## Open the pull request
+- **No deployment impact**
+- **Deployment expected after merge**
+- **Deployment behavior changed by this PR**
 
-1. Push the feature branch.
-2. Use GitHub CLI (`gh`) to create a pull request targeting `main`.
-3. Include the actual Multica issue key in the title, for example `MUL-123 Add source tracking foundation`.
-4. Put `Closes <ISSUE-ID>` in the body, replacing the placeholder with the actual key.
-5. Include a concise summary, verification results, and deployment impact classification.
-6. Do not merge the pull request unless a human explicitly requests it.
+Name the existing workflow or mechanism and the minimum post-merge check when deployment applies. Do not claim CI or production success from a local build.
 
-## Hand off for review
+## Open or update the PR
 
-After opening the pull request:
+For a new PR:
 
-1. Verify its URL.
-2. Verify the intended base and head branches.
-3. Verify that the originating Multica issue can be linked to it.
-4. Report the pull request on the Multica issue.
-5. Leave the issue ready for human review.
+1. Push the branch.
+2. Use the pull request template.
+3. Put the actual issue key in the title and `Closes <ISSUE-ID>` in the body.
+4. Include summary, verification and deployment impact.
+5. In chapter mode, create it as Draft and record `parent_issue_key`, `chapter_branch` and `chapter_pr` in the Parent Issue handoff.
 
-For a change with deployment impact, state what should deploy after merge, which repository workflow or mechanism is responsible when known, why it cannot be verified before merge, and what minimal production checks remain. Human merge remains the gate; feature agents do not need to merge their own pull requests to verify deployment.
+For an existing canonical chapter PR:
 
-If an observed post-merge deployment fails, do not describe delivery as successful. Report the failed workflow or visible symptom and recommend focused remediation or a follow-up issue. Do not silently change unrelated production configuration.
+1. Verify base, head, Draft state and Parent Issue association.
+2. Push only to `chapter_branch`.
+3. Update the existing PR description / checks if the new stage changes them; never open a replacement.
 
-Include in the final report:
+Agents never merge. In chapter mode only the Leader, after Reviewer `PASS` and synchronization checks, may make the Draft PR ready for human review.
 
-- Summary of changes
-- Branch name
-- Commit SHA
-- Pull request URL
-- Local validation performed
-- Current CI status, if known
-- Deployment impact
-- Expected post-merge deployment, if applicable
-- Required post-merge production verification
-- Remaining human review items
+## Hand off
+
+Ordinary work reports branch, commit, PR, local checks, CI status, deployment impact and human review items.
+
+Chapter workers use the exact structured messages in `book/LEARNING_SQUAD.md`. The final Leader summary additionally reports `updated` / `not required` for ROADMAP, CHANGELOG, README, AGENTS, BOOK_ARCHITECTURE and source registry. Parent status remains `in_review` until human merge.

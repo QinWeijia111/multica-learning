@@ -3,6 +3,13 @@
 - Describe the focused change.
 - Explain why it is needed.
 
+## Workflow Context
+
+- Mode: `<ordinary task | shared chapter PR>`
+- Parent issue: `<ISSUE-ID>`
+- Chapter branch / canonical PR: `<not applicable | confirmed>`
+- Current chapter stage: `<not applicable | source research | tutorial production | review/fixes | integration>`
+
 ## Verification
 
 - List the local checks run and their results.
@@ -25,3 +32,4 @@ Replace `<ISSUE-ID>` with the actual Multica issue key, for example `MUL-123`.
 
 - Note decisions or areas that need reviewer attention.
 - Leave merge approval and squash merge to a human unless explicitly requested otherwise.
+- For a canonical chapter PR, keep it Draft until Reviewer `PASS` and Leader synchronization checks; never merge between stages.
