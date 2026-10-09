@@ -26,6 +26,8 @@ Use this mode when chapter coordination supplies or establishes `parent_issue_ke
 - Later workers fetch / check out the exact shared branch, verify the PR head, commit only their bounded stage changes, and push to that same branch.
 - No intermediate merge marks stage completion. Use the structured Parent Issue handoff from `book/LEARNING_SQUAD.md`.
 - `FOCUSED_DELTA` review and its fixes remain on the same PR.
+- After Reviewer `PASS`, the final integration commit prepares project-state documents as `projected state after this canonical PR merges`: the current chapter is `COMPLETE`, and the next action is either an already-approved `NEXT` chapter or `EDITORIAL_REVIEW_REQUIRED` at a rolling-window boundary. Never promote a provisional chapter.
+- Human merge atomically makes the primary artifacts and projected state authoritative on `main`; normal chapter delivery does not use a post-merge reconciliation PR.
 - Preserve ordinary one-task-one-PR behavior when shared chapter fields are absent.
 
 ## Prepare
@@ -86,10 +88,10 @@ For an existing canonical chapter PR:
 2. Push only to `chapter_branch`.
 3. Update the existing PR description / checks if the new stage changes them; never open a replacement.
 
-Agents never merge. In chapter mode only the Leader, after Reviewer `PASS` and synchronization checks, may make the Draft PR ready for human review.
+Agents never merge. In chapter mode only the Leader, after Reviewer `PASS`, projected post-merge state preparation, and synchronization checks, may make the Draft PR ready for human review. The Multica Parent Issue can remain `in_review` until merge even though branch ROADMAP contains the projected completed repository state.
 
 ## Hand off
 
 Ordinary work reports branch, commit, PR, local checks, CI status, deployment impact and human review items.
 
-Chapter workers use the exact structured messages in `book/LEARNING_SQUAD.md`. The final Leader summary additionally reports `updated` / `not required` for ROADMAP, CHANGELOG, README, AGENTS, BOOK_ARCHITECTURE and source registry. Parent status remains `in_review` until human merge.
+Chapter workers use the exact structured messages in `book/LEARNING_SQUAD.md`. The final Leader summary labels ROADMAP as `projected state after this canonical PR merges` and reports `updated` / `not required` for ROADMAP, CHANGELOG, README, AGENTS, BOOK_ARCHITECTURE and source registry. Parent status remains `in_review` until human merge; human merge makes the projected repository state authoritative without a normal follow-up PR.

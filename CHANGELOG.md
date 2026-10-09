@@ -18,4 +18,4 @@ Reference: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
-- 章节生产改为一个 Parent Chapter Issue、共享章节分支和 canonical Draft PR 上的连续交接；研究、写作、审查与修复不再通过中间合并推进，最终只由人类合并一次。
+- 章节生产改为一个 Parent Chapter Issue、共享章节分支和 canonical Draft PR 上的连续交接；研究、写作、审查、修复及合并后投影状态在同一 PR 交付，最终只由人类合并一次且无需正常的 post-merge reconciliation PR。

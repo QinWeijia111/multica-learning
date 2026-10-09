@@ -43,8 +43,10 @@ Human: 完成下一个章节
   → Technical Reviewer: FULL_AUDIT on exact unmerged commit
   → REQUEST_CHANGES? bounded fixes on same PR → FOCUSED_DELTA
   → PASS
-  → Leader: synchronization + CI + Parent in_review + PR ready
+  → Leader: projected post-merge ROADMAP + synchronization + CI
+  → Parent in_review + PR ready
   → one final human merge
+  → main immediately exposes the completed chapter state
 ```
 
 默认不创建 child Issue。只有真正独立的调查、基础设施工作或可安全并行的实验才使用 child Issue，并说明为什么它不破坏单章线性所有权。普通阶段 handoff 使用 Parent Issue 上的结构化回复；worker 对 Squad-assigned Parent 的回复会唤醒 Leader，不需要重复 `@mention`。
@@ -121,13 +123,21 @@ Reviewer 主要检查 commit delta、原 finding 和直接相关 invariants。�
 
 ## 状态文档同步
 
-状态文档是交付物的一部分，不是最后可选清理。章节生产状态按以下顺序变化：
+状态文档是交付物的一部分，不是最后可选清理。`main` 上的 `ROADMAP.md` 始终是当前项目状态的权威来源；章节分支在 Reviewer `PASS` 前可以按以下工作状态推进：
 
 ```text
 NEXT → IN_RESEARCH → IN_WRITING → IN_REVIEW
 ```
 
-Reviewer `PASS` 后仍保持 `IN_REVIEW`，直到人类合并；合并后才能改为 `COMPLETE` 并解析下一动作。不得把 provisional 章节自动提升为 `NEAR_TERM_FROZEN`。
+Reviewer `PASS` 后，Leader 必须在 canonical PR 上准备最终集成 commit，使分支内所有项目状态文档表达 **`projected state after this canonical PR merges`**，而不是声称 `main` 已经变化。该语义必须在 PR / Parent Issue 的最终集成摘要中明确标注。人类合并会原子地让研究、教程、图、修复、ROADMAP、CHANGELOG 与 source metadata 一起成为 `main` 的权威状态；正常章节不再需要 post-merge reconciliation PR。
+
+投影规则：
+
+- 若下一章已经由人类批准为 `NEAR_TERM_FROZEN`，最终分支可把本章设为 `COMPLETE`，并把下一允许章节设为 `NEXT`；
+- 若本章耗尽滚动冻结窗口，最终分支把本章设为 `COMPLETE`，把 Current Focus / 下一动作设为 `EDITORIAL_REVIEW_REQUIRED` / 人类课程复核；
+- M03 属于后一种边界：M03 → `COMPLETE`，Current Focus → `EDITORIAL_REVIEW_REQUIRED`，Next allowed action → human curriculum review；M04 及其他 provisional 章节保持 `PLANNED / PROVISIONAL` 与 `NOT_STARTED`，不得自动提升。
+
+Multica Parent Issue 可以因集成尚未发生而保持 `in_review`。两种状态不可混用：Parent Issue status 表达工作流 / 集成状态；章节分支最终 ROADMAP 表达合并后的投影仓库状态；`main` ROADMAP 表达当前权威仓库状态。
 
 每一阶段只有在主产物与受影响的权威状态文档同步后才算完成。最终集成阶段必须检查：
 
@@ -155,14 +165,15 @@ Leader 必须验证：
 
 1. canonical PR 的 head 正是 `reviewed_commit`，或只有明确核验过的集成同步 commit；
 2. primary artifact 完整，CI 状态已检查；
-3. ROADMAP 为 `IN_REVIEW`，且 `[Unreleased]` 有有意义条目；
+3. ROADMAP 已准备并标注为 `projected state after this canonical PR merges`：本章为 `COMPLETE`，且下一允许动作按已批准窗口解析；`[Unreleased]` 有有意义条目；
 4. README 已按需更新或明确 `not required`；
 5. AGENTS、BOOK_ARCHITECTURE 和 source registry 没有陈旧或未经批准的变化；
 6. 所有同步变更都在 canonical PR；
-7. Parent Chapter Issue 切为 `in_review`，Draft PR 在适当时转为 ready；
-8. 最终集成摘要逐项报告 ROADMAP、CHANGELOG、README、AGENTS、BOOK_ARCHITECTURE、source registry 为 `updated` 或 `not required`。
+7. 若冻结窗口已耗尽（包括 M03），Current Focus 为 `EDITORIAL_REVIEW_REQUIRED`、下一动作是人类课程复核，且没有 provisional 章节被自动提升；
+8. Parent Chapter Issue 切为 `in_review`，Draft PR 在适当时转为 ready；
+9. 最终集成摘要逐项报告 ROADMAP、CHANGELOG、README、AGENTS、BOOK_ARCHITECTURE、source registry 为 `updated` 或 `not required`，并明确 ROADMAP 是合并后投影状态。
 
-然后停止。Leader 不把 Parent 标为 `done`，也不合并；人类执行正常章节唯一一次 merge。后续 Leader invocation 可在 merge 后对 `main` 做状态 reconciliation。
+然后停止。Leader 不把 Parent 标为 `done`，也不合并；人类执行正常章节唯一一次 merge。该 merge 后 `main` 立即包含正确的完成态，不需要正常的 post-merge reconciliation PR。
 
 ## 人类 gate 与防重复
 
