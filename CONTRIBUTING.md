@@ -2,10 +2,14 @@
 
 ## 工作流程
 
-1. 从最新的 `main` 创建功能分支。
+开始前先读 `AGENTS.md` 和 `ROADMAP.md`。普通任务：
+
+1. 从最新的 `main` 创建包含 Issue key 的功能分支。
 2. 完成一组范围明确、可独立审查的修改。
 3. 提交修改并推送功能分支。
 4. 创建目标为 `main` 的拉取请求，等待审查；不要直接推送到 `main`。
+
+正常章节不按角色创建多个 PR，而是遵守 `book/LEARNING_SQUAD.md`：一个 Parent Chapter Issue、共享章节分支、canonical Draft PR，研究、写作、评审与修复都在同一 PR，最终只由人类合并一次。
 
 ## 本地开发
 
@@ -51,5 +55,6 @@ npm run build
 cd site
 npm ci
 npm run check
+npm test
 npm run build
 ```

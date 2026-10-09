@@ -1,123 +1,172 @@
 # Multica Learning Squad 操作协议
 
-本文是 `Multica Learning Squad` 的版本控制操作协议。Squad 是章节生产的协调机制，不是把一个 Issue 自动分发给所有成员的并行执行器。默认采用顺序路由和显式阶段边界；证据质量、教学一致性与人类决策优先于自动化程度。
+本文定义普通章节从选择到人类合并的版本控制协议。Squad 是 Leader 路由的顺序协作机制，不是自动 fan-out；章节状态来自 `ROADMAP.md`，课程边界来自 `book/BOOK_ARCHITECTURE.md`。
 
-课程边界以 `book/BOOK_ARCHITECTURE.md` 为准；每章开始广泛研究前必须确认一份符合 `book/CHAPTER_CONTRACT.md` 的章节契约。写作与核验方法分别遵循 `skills/source-dive-writing`、`skills/technical-diagramming`、`skills/multica-source-verification` 和 `skills/repository-workflow`。M01（`site/src/content/tutorials/run-lifecycle.mdx`）是教学质量范例，不是固定标题模板。
+核心规则：**MERGE IS AN INTEGRATION EVENT, NOT A STAGE-COMPLETION EVENT.**
+
+普通线性章节的默认交付单元是：**一个章节、一个 Multica Parent Chapter Issue、一个共享 Git 分支、一个 canonical GitHub PR、一次最终人类合并**。不得把研究完成、教程完成、审查完成或 Issue 状态变化当成中间合并理由。
 
 ## 成员与职责
 
 | 角色 | 责任 | 明确边界 |
 | --- | --- | --- |
-| Leader / Editorial Coordinator | 判断当前阶段，只把下一项有边界的工作交给恰当成员，然后停止 | 不亲自研究、写教程、审自己的章节、修改代码或文档、合并 PR、静默更改全书架构 |
-| Source Analyst | 固定完整上游 commit SHA，回答 Source Research Questions，建立 Source Map、证据边界和研究产物 | 不写最终教程，不为迎合标题发明结论，不改变课程结构 |
-| Tutorial Writer | 把已验证研究转成清晰的中文教学内容与必要 Mermaid 图 | 不独立补做源码研究，不把 `INFERENCE` 升格为事实，不机械复制 M01 标题结构 |
-| Technical Reviewer | 独立检查证据、技术语义、图示和教学质量，按显式模式给出结论 | 不在初审中替 Writer 改稿，不合并 PR，不把无关偏好升级为阻塞问题 |
-| Frontend Engineer | 负责展示基础设施、响应式布局、可访问性、导航与阅读体验 | 不独立改变技术主张、Source Map、图示语义或章节架构 |
+| Leader / Editorial Coordinator | 从仓库状态解析下一阶段，顺序路由、验证 handoff、维护 Parent Issue 和最终集成状态 | 不研究、不写教程、不审自己的章节、不合并 PR、不静默改变课程结构 |
+| Source Analyst | 固定完整上游 commit，建立 Source Map、证据边界和研究产物，并创建 / 推进 canonical Draft PR | 不写最终教程，不建独立 research PR，不改变课程结构 |
+| Tutorial Writer | 在同一分支 / PR 把已验证研究转成中文教学内容与必要技术图 | 不建立新实现事实，不建新 PR，不绕过证据 gate |
+| Technical Reviewer | 对准确的未合并 commit 执行 `FULL_AUDIT` 或 `FOCUSED_DELTA`，给出结构化 verdict | 不改稿、不合并、不要求人工关闭 Issue 或人工切状态后才评审 |
+| Frontend Engineer | 仅在需要展示基础设施、布局、可访问性或响应式能力时加入同一 PR | 不改变技术语义、证据、课程边界或章节 PR 拓扑 |
 
-Frontend Engineer 不是每章必经阶段。普通 MDX 写作和 Mermaid 教学图属于 Tutorial Writer；只有出现新的站点展示行为、布局、可视化基础设施，或正常 MDX 无法解决的可访问性 / 响应式问题时才升级给 Frontend Engineer。
+## “完成下一个章节”解析
 
-## Leader 协议
+Leader 收到 `完成下一个章节` 后必须：
 
-每次收到父级章节 Issue 后，Leader 必须：
+1. 读取仓库 `AGENTS.md`；
+2. 读取 `ROADMAP.md` 的 `Current Focus`，从仓库状态而不是旧聊天解析下一项允许动作；
+3. 若目标章节同时是 Production `NEXT` 与 Architecture `NEAR_TERM_FROZEN`，读取 `book/BOOK_ARCHITECTURE.md`，建立或确认符合 `book/CHAPTER_CONTRACT.md` 的 Chapter Contract；
+4. 确认 / 建立 Parent Chapter Issue，并在该 Parent Issue 中 mention 唯一合适成员来路由下一阶段；
+5. 若状态是 `EDITORIAL_REVIEW_REQUIRED`，停止并请求人类课程决定；
+6. 永不自主选择 `PLANNED / PROVISIONAL` 章节。
 
-1. 读取父 Issue、`BOOK_ARCHITECTURE.md` 和该章 Chapter Contract。
-2. 根据已有交付物与评审结果识别唯一的当前生产阶段。
-3. 按下表选择恰好一个合适成员或人类 gate。
-4. 使用独立 child / stage Issue 委派下一项可验证、有边界的工作。
-5. 完成委派后停止；只有新证据、worker 结果或人类决定到来时才重新评估。
+当前仓库状态应解析到 M03，但该事实由 `ROADMAP.md` 拥有；本协议不复制当前章节状态。
 
-| 当前需要 | 路由目标 |
-| --- | --- |
-| 证据缺失、薄弱或与契约冲突 | Source Analyst |
-| 研究已验证、教程尚未完成 | Tutorial Writer |
-| 新章首次正式评审或重大变化 | Technical Reviewer / `FULL_AUDIT` |
-| full audit 后的有界修复已完成 | Technical Reviewer / `FOCUSED_DELTA` |
-| 仅涉及站点展示、布局、可访问性或响应式 | Frontend Engineer |
-| 涉及课程边界 | 人类课程负责人 |
-
-不要因为成员存在就“以防万一”全部路由。只有任务真正独立、不会产生互相冲突的证据或教学决策时才允许并行。
-
-## 章节生产生命周期
-
-父级 chapter-production Issue 是协调容器，不要求直接对应单一 GitHub PR。研究、教程生产与其他可追踪交付应按需使用独立 child / stage Issue：
+## 一个 Issue / 分支 / PR 生命周期
 
 ```text
-Parent Chapter Issue
-        ↓
-Chapter Contract confirmed
-        ↓
-Source Research Issue → Source Analyst
-        ↓
-research artifact + review-only PR
-        ↓
-human merge / evidence gate
-        ↓
-Tutorial Production Issue → Tutorial Writer
-        ↓
-tutorial + diagrams + review-only PR
-        ↓
-Technical Reviewer FULL_AUDIT
-        ↓
-Writer fixes
-        ↓
-Technical Reviewer FOCUSED_DELTA
-        ↓
-human merge
-        ↓
-chapter ready for integration
+Human: 完成下一个章节
+  → Leader reads AGENTS + ROADMAP
+  → resolve NEXT / NEAR_TERM_FROZEN chapter
+  → confirm Chapter Contract + Parent Chapter Issue
+  → Source Analyst: shared branch + research + canonical Draft PR
+  → STAGE_COMPLETE / SOURCE_RESEARCH
+  → Tutorial Writer: same branch + same PR
+  → STAGE_COMPLETE / TUTORIAL_PRODUCTION
+  → Technical Reviewer: FULL_AUDIT on exact unmerged commit
+  → REQUEST_CHANGES? bounded fixes on same PR → FOCUSED_DELTA
+  → PASS
+  → Leader: synchronization + CI + Parent in_review + PR ready
+  → one final human merge
 ```
 
-真实生产开始时，Leader 可以把 Squad 负责的父 Issue 移到 `in_progress`。child / stage Issue 应持续反映 worker 活动。只有整章已准备好由人类集成时，Leader 才把父 Issue 移到 `in_review`；Leader 不把父 Issue 标为 `done`。
+默认不创建 child Issue。只有真正独立的调查、基础设施工作或可安全并行的实验才使用 child Issue，并说明为什么它不破坏单章线性所有权。普通阶段 handoff 使用 Parent Issue 上的结构化回复；worker 对 Squad-assigned Parent 的回复会唤醒 Leader，不需要重复 `@mention`。
 
-## 证据协议与缺口回传
+## 共享分支与 canonical PR
 
-Source Analyst 沿行为优先的纵向路径研究，产物写入 `research/`，并明确区分 `SOURCE`、`DOCS`、`EXPERIMENT` 与 `INFERENCE`。研究必须保留文档与源码差异、未决问题和证据适用边界，避免宽泛的 package-by-package 浏览。
+- 首个产生仓库内容的 worker 创建包含 Parent Issue key 的章节分支，例如 `navi-xx-m03-control-execution-plane`。
+- Source Analyst 在第一个有用的 research commit 后创建唯一 Draft PR；标题包含 Parent Issue key 和章节，例如 `NAVI-XX M03 — Why Server Does Not Run Agents Directly`，正文包含 `Closes NAVI-XX`。
+- `parent_issue_key`、`chapter_branch`、`chapter_pr` 一旦确立，后续 Writer、修复 worker 和 Reviewer 都必须复用；不得创建角色专属分支或替代 PR。
+- Parent Issue ↔ PR 关联由分支名、PR 标题和 closing keyword 共同保证。
+- PR 在 Reviewer `PASS` 前保持 Draft；Leader 完成集成核验后可将其设为 ready for human review。
 
-Tutorial Writer 必须先读 Chapter Contract、权威研究产物、当前写作与图示 Skill，以及作为范例的 M01。推荐教学顺序是：
+## 结构化阶段交接
+
+生命周期摘要中的 `RESEARCH_READY` 指下方 `STAGE_COMPLETE / SOURCE_RESEARCH / READY`，`TUTORIAL_READY` 指 `STAGE_COMPLETE / TUTORIAL_PRODUCTION / READY`；结构化消息本身使用下方固定字段，避免依赖自由文本。
+
+Source Analyst 完成研究时在 Parent Issue 回复：
 
 ```text
-reader question
-→ architecture / semantic model
-→ concrete journey or example
-→ teaching pseudocode（需要时）
-→ focused production source（需要时）
-→ source navigation appendix
+STAGE_COMPLETE
+stage: SOURCE_RESEARCH
+status: READY
+chapter_branch: ...
+chapter_pr: ...
+commit: ...
+upstream_commit: ...
+evidence_gap: none
+editorial_escalation: none
+next_recommended_stage: TUTORIAL_PRODUCTION
 ```
 
-Writer 遇到研究不能支持的重要实现主张时，必须停止该主张、记录具体缺口并交还 Leader / Source Analyst；不得自行绕过研究 gate 补出结论。
+如研究暴露课程边界问题，设置 `editorial_escalation` 并停止；正常 `evidence_gap: none` 不需要额外人类 evidence gate 或中间合并。
 
-## Technical Reviewer 模式
+Tutorial Writer 完成写作时回复：
 
-每个评审请求与结果都必须显式标注模式。
+```text
+STAGE_COMPLETE
+stage: TUTORIAL_PRODUCTION
+status: READY
+chapter_pr: ...
+commit: ...
+research_commit: ...
+next_recommended_stage: FULL_AUDIT
+```
 
-### `FULL_AUDIT`
+Reviewer 对准确 commit 返回：
 
-适用于新章首次正式评审、重大教学改写、研究基线变化、主要图示变化或生产源码摘录的重大变化。Reviewer 可以检查 Chapter Contract、研究产物、教程、图示、源码 spot-check、证据边界、教学质量，以及与范围相称的确定性检查 / CI。
+```text
+REVIEW_COMPLETE
+mode: FULL_AUDIT
+reviewed_commit: ...
+verdict: PASS | REQUEST_CHANGES
 
-finding 严重度固定为 `BLOCKER`、`MUST_FIX`、`SHOULD_FIX`、`NIT`；verdict 固定为 `PASS` 或 `REQUEST_CHANGES`。只有尚未解决的 `BLOCKER` / `MUST_FIX` 触发 `REQUEST_CHANGES`。
+blocker:
+must_fix:
+should_fix:
+nit:
+```
 
-### `FOCUSED_DELTA`
+Reviewer 判断质量，Leader 拥有工作流状态转换。Reviewer 不依赖手动 Issue closure 或人类状态切换。
 
-仅用于已有 `FULL_AUDIT` 评审过较早 commit，且后续变化是有界修复的情况。请求必须提供：
+## 修复与 `FOCUSED_DELTA`
+
+`REQUEST_CHANGES` 时，Leader 把每项有界修复交给最合适 worker；修复仍在同一 `chapter_branch` / `chapter_pr`。Worker 回复 `FIXES_READY` 并提供当前 commit 与已处理 finding。
+
+Leader 随后请求 Reviewer `FOCUSED_DELTA`，必须提供：
 
 - `previous_reviewed_commit`
 - `current_commit`
 - `findings_to_verify`
 - `regression_invariants`
 
-Reviewer 主要检查 `previous_reviewed_commit..current_commit`，确认原 finding 已修复、直接相关 invariants 仍成立、范围没有扩张。若 GitHub CI 已绿色、变更不涉及构建基础设施且证据基线未改变，不自动重读整章、重审全部图、重查全部上游源码或重跑完整本地构建。
+Reviewer 主要检查 commit delta、原 finding 和直接相关 invariants。若范围或证据基线扩大，则解释原因并升级为 `FULL_AUDIT`；无论哪种模式都不创建新分支、PR 或中间合并。
 
-如果 delta 暴露新的证据范围、固定 commit 变化、大量无关修改或架构扩张，Reviewer 必须解释原因并升级为 `FULL_AUDIT`。`FOCUSED_DELTA` 输出保持简短，至少包含模式、verdict、已验证 findings / invariants 与是否出现新的 `BLOCKER` / `MUST_FIX`。
+## 状态文档同步
 
-## 人类 gate
+状态文档是交付物的一部分，不是最后可选清理。章节生产状态按以下顺序变化：
 
-- **课程 gate**：Part 重排、章节拆分 / 合并、增加 / 删除主要章节、改变章节主要 Reader Question，均须人类课程负责人批准。
-- **证据 gate**：研究证据由 Source Analyst 建立；Writer 不得静默引入未支持的实现事实。
-- **合并 gate**：Agent 只创建 review-only PR，永不合并；合并由人类决定。
-- **Golden / architecture gate**：Agent 可以建议 `GOLDEN`、`NEAR_TERM_FROZEN`、拆分 / 合并或架构更新，只有人类课程负责人可以批准。
+```text
+NEXT → IN_RESEARCH → IN_WRITING → IN_REVIEW
+```
 
-## 防重复委派
+Reviewer `PASS` 后仍保持 `IN_REVIEW`，直到人类合并；合并后才能改为 `COMPLETE` 并解析下一动作。不得把 provisional 章节自动提升为 `NEAR_TERM_FROZEN`。
 
-同一工作单元只使用一种委派机制。若工作已有专属 child Issue，则以 assignment 为主要委派方式，不再用 `@mention` 要求同一 Agent 执行相同任务。Mention 只用于讨论、澄清或不会复制现有 assignment 的显式 handoff。
+每一阶段只有在主产物与受影响的权威状态文档同步后才算完成。最终集成阶段必须检查：
 
-把 Issue 分配给 Squad 只会路由给 Leader，不表示所有成员自动 fan-out。Leader 必须按当前阶段顺序委派，不得创建“全员启动”的验证任务。
+- `ROADMAP.md`
+- `CHANGELOG.md`
+- `README.md`
+- `AGENTS.md`
+- `book/BOOK_ARCHITECTURE.md`
+- `book/CHAPTER_CONTRACT.md`
+- `book/LEARNING_SQUAD.md`
+- `sources/*`
+
+只更新职责确实受影响的文件：
+
+- 每个正常章节 PR 更新 ROADMAP 的 Current Focus / production state，并在 `[Unreleased]` 添加有意义的 CHANGELOG 项；
+- README 只在项目身份、公开能力、高层进度、结构、onboarding 或导航发生实质变化时更新；
+- AGENTS 只在路由或操作规则变化时更新；
+- Book Architecture 只在获批的 split / merge、Part 顺序、Reader Question 或 architecture status 变化时更新；
+- Chapter Contract 的非结构性澄清可在章内完成，Reader Question、章节边界、Part、split / merge 仍需人类批准；
+- 新上游 commit 的完整 SHA 写入研究产物和设计好的章节 metadata / source registry，不覆盖其他章节基线。
+
+## Reviewer `PASS` 后的 Leader 清单
+
+Leader 必须验证：
+
+1. canonical PR 的 head 正是 `reviewed_commit`，或只有明确核验过的集成同步 commit；
+2. primary artifact 完整，CI 状态已检查；
+3. ROADMAP 为 `IN_REVIEW`，且 `[Unreleased]` 有有意义条目；
+4. README 已按需更新或明确 `not required`；
+5. AGENTS、BOOK_ARCHITECTURE 和 source registry 没有陈旧或未经批准的变化；
+6. 所有同步变更都在 canonical PR；
+7. Parent Chapter Issue 切为 `in_review`，Draft PR 在适当时转为 ready；
+8. 最终集成摘要逐项报告 ROADMAP、CHANGELOG、README、AGENTS、BOOK_ARCHITECTURE、source registry 为 `updated` 或 `not required`。
+
+然后停止。Leader 不把 Parent 标为 `done`，也不合并；人类执行正常章节唯一一次 merge。后续 Leader invocation 可在 merge 后对 `main` 做状态 reconciliation。
+
+## 人类 gate 与防重复
+
+- Part 重排、章节拆分 / 合并、增删主要章节、Reader Question 和 Architecture status 变更需人类课程负责人批准。
+- 对同一工作只使用一种委派方式；Parent Issue reply 已会唤醒 Leader时，不添加礼貌性 mention。
+- 不创建 Weekly Upstream Watch、Autopilot 或其他推测性基础设施，除非独立 Issue 明确要求。
+- Frontend Engineer 不是每章必经阶段；普通 MDX 和 Mermaid 属于 Tutorial Writer。

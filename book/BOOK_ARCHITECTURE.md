@@ -38,7 +38,7 @@
 
 ### M02 — Multica 里到底有哪些“东西”？——从产品对象到源码对象
 
-**状态：`NEAR_TERM_FROZEN`（NEXT）**
+**状态：`NEAR_TERM_FROZEN`**
 
 - **主要问题**：Issue、Run/task、Agent、Runtime、Workspace、Project 如何关联，为什么产品词汇与源码词汇不同？
 - **前置知识**：M01 的整机旅程模型。
@@ -53,7 +53,7 @@
 
 ### M03 — 为什么 Server 不直接运行 Agent？——Control Plane 与 Execution Plane
 
-**状态：`NEAR_TERM_FROZEN`（NEXT）**
+**状态：`NEAR_TERM_FROZEN`**
 
 - **主要问题**：为什么 Multica 把协调与本地执行分开？
 - **前置知识**：M01 的纵向旅程，以及 M02 建立的对象词汇。
