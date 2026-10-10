@@ -3,7 +3,7 @@
 - **Current phase**：Phase 9B.1 — repository-driven chapter production
 - **Current Part**：Part I — 看见整台机器
 - **Current chapter**：M03 — 为什么 Server 不直接运行 Agent？——Control Plane 与 Execution Plane
-- **Next allowed action**：为 M03 建立 / 确认 Chapter Contract，然后由 Source Analyst 在 Parent Chapter Issue、共享章节分支和 canonical Draft PR 上开始源码研究
+- **Next allowed action**：Source Analyst 在 NAVI-28 的共享章节分支和 canonical Draft PR 上完成 M03 源码研究，并交接给 Tutorial Writer
 - **Next human gate**：M03 在 Reviewer `PASS` 后由人类审查并合并 canonical PR；M03 完成后，人类编辑复核并决定是否冻结下一滚动窗口（例如 M04–M06）
 
 本文件是“下一步做什么”的唯一权威来源。聊天记录、旧 Issue、PR 描述和 Book Architecture 中的章节顺序不能替代这里的当前生产状态。
@@ -23,7 +23,7 @@ Architecture status 与 Production status 是两条独立轴：
 | --- | --- | --- | --- | --- | --- |
 | M01 | 从 Issue 分配到本地 Codex 执行 | I | `GOLDEN` | `COMPLETE` | 作为 Golden Chapter 保持可追溯 |
 | M02 | Multica 里到底有哪些“东西”？——从产品对象到源码对象 | I | `NEAR_TERM_FROZEN` | `COMPLETE` | 无；已完成研究与教程 |
-| M03 | 为什么 Server 不直接运行 Agent？——Control Plane 与 Execution Plane | I | `NEAR_TERM_FROZEN` | `NEXT` | 确认 Contract，启动单 Issue / 分支 / PR 流水线 |
+| M03 | 为什么 Server 不直接运行 Agent？——Control Plane 与 Execution Plane | I | `NEAR_TERM_FROZEN` | `IN_RESEARCH` | Source Analyst 完成研究并交接 `TUTORIAL_PRODUCTION` |
 | M04 | Agent 为什么开始工作？——四类 Trigger 如何汇入执行主线 | II | `PLANNED / PROVISIONAL` | `NOT_STARTED` | M03 合并后等待人类编辑复核 |
 | M05 | Run 在源码里究竟是什么？——TaskService 与 Durable Task | II | `PLANNED / PROVISIONAL` | `NOT_STARTED` | 不得自动启动；等待下一冻结窗口 |
 | M06 | 到底是谁获得了任务？——Wakeup、Polling、Claim 与并发控制 | II | `PLANNED / PROVISIONAL` | `NOT_STARTED` | 不得自动启动；等待下一冻结窗口 |
