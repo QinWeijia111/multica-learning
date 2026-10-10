@@ -2,8 +2,9 @@
 
 - **Current phase**：Phase 9B.1 — repository-driven chapter production
 - **Current Part**：Part I — 看见整台机器
-- **Current chapter**：M03 — 为什么 Server 不直接运行 Agent？——Control Plane 与 Execution Plane
-- **Next allowed action**：Tutorial Writer 在 NAVI-28 的共享章节分支和 canonical Draft PR 上完成 M03 中文教程与技术图，并交接 `FULL_AUDIT`
+- **Current chapter**：M03 — 为什么 Server 不直接运行 Agent？——Control Plane 与 Execution Plane（`IN_REVIEW`）
+- **Current review stage**：`REQUEST_CHANGES`；仅处理 ROADMAP 状态同步这一项 bounded fix，随后进入 `FOCUSED_DELTA`
+- **Next allowed action**：Tutorial Writer 在 NAVI-28 的共享章节分支和 canonical Draft PR 上完成上述 bounded fix，然后由 Technical Reviewer 对修复 commit 执行 `FOCUSED_DELTA`
 - **Next human gate**：M03 在 Reviewer `PASS` 后由人类审查并合并 canonical PR；M03 完成后，人类编辑复核并决定是否冻结下一滚动窗口（例如 M04–M06）
 
 本文件是“下一步做什么”的唯一权威来源。聊天记录、旧 Issue、PR 描述和 Book Architecture 中的章节顺序不能替代这里的当前生产状态。
@@ -23,7 +24,7 @@ Architecture status 与 Production status 是两条独立轴：
 | --- | --- | --- | --- | --- | --- |
 | M01 | 从 Issue 分配到本地 Codex 执行 | I | `GOLDEN` | `COMPLETE` | 作为 Golden Chapter 保持可追溯 |
 | M02 | Multica 里到底有哪些“东西”？——从产品对象到源码对象 | I | `NEAR_TERM_FROZEN` | `COMPLETE` | 无；已完成研究与教程 |
-| M03 | 为什么 Server 不直接运行 Agent？——Control Plane 与 Execution Plane | I | `NEAR_TERM_FROZEN` | `IN_WRITING` | Tutorial Writer 完成教程与技术图并交接 `FULL_AUDIT` |
+| M03 | 为什么 Server 不直接运行 Agent？——Control Plane 与 Execution Plane | I | `NEAR_TERM_FROZEN` | `IN_REVIEW` | ROADMAP bounded fix 后执行 `FOCUSED_DELTA`；Reviewer `PASS` 后进入最终集成 |
 | M04 | Agent 为什么开始工作？——四类 Trigger 如何汇入执行主线 | II | `PLANNED / PROVISIONAL` | `NOT_STARTED` | M03 合并后等待人类编辑复核 |
 | M05 | Run 在源码里究竟是什么？——TaskService 与 Durable Task | II | `PLANNED / PROVISIONAL` | `NOT_STARTED` | 不得自动启动；等待下一冻结窗口 |
 | M06 | 到底是谁获得了任务？——Wakeup、Polling、Claim 与并发控制 | II | `PLANNED / PROVISIONAL` | `NOT_STARTED` | 不得自动启动；等待下一冻结窗口 |
