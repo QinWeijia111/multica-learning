@@ -12,6 +12,8 @@ Prefer automatic linking because it makes the relationship visible and reliable 
 
 Use at least the pull request title and a closing-keyword line; include the key in the branch name whenever the branch is created for the work.
 
+For shared chapter PR mode, these signals belong to the Parent Chapter Issue and the one canonical PR. Every later stage reuses the same linked branch and PR; do not create new role-specific links or PRs. Before pushing, verify that the supplied `chapter_pr` still has `chapter_branch` as its head.
+
 `Related to MUL-123` is insufficient because it states context but does not use a recognized closing keyword. Commit messages alone also do not establish the required pull request-to-issue link: they may be hidden by squash merging and are not the pull request metadata Multica uses for the relationship.
 
 ## Fallback
