@@ -40,7 +40,7 @@ Multica 横跨 Web 产品、持久化调度、本地 Daemon、Coding Agent provi
 - `research/`：按章节保存的源码研究与实验；
 - `sources/`：上游版本和章节源码基线；
 - `skills/`：可版本控制、可审查的 Agent 工作方法；
-- `.github/`：拉取请求 CI 与合并到 `main` 后的 GitHub Pages 部署工作流；
+- `.github/`：拉取请求 CI、合并到 `main` 后的 GitHub Pages 部署工作流及其 [`WORKFLOWS.md`](.github/WORKFLOWS.md) 说明；
 - `ROADMAP.md`：当前阶段、章节生产状态和下一项允许动作；
 - `CHANGELOG.md`：有意义的项目变化，不是 commit 日志。
 
@@ -76,3 +76,4 @@ npm run build
 - [`book/LEARNING_SQUAD.md`](book/LEARNING_SQUAD.md)：连续章节生产协议；
 - [`CHANGELOG.md`](CHANGELOG.md)：历史重要变化；
 - [`CONTRIBUTING.md`](CONTRIBUTING.md)：贡献与本地验证。
+- [`.github/WORKFLOWS.md`](.github/WORKFLOWS.md)：CI 与 GitHub Pages 部署机制。

@@ -76,6 +76,7 @@ footer {
 
 .site-header nav {
   display: flex;
+  align-items: center;
   gap: 1rem;
 }
 
@@ -84,8 +85,14 @@ footer {
   color: var(--green);
 }
 
+.nav-github {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
 main:not(.chapter-main) {
-  padding-block: clamp(3rem, 10vw, 7rem);
+  padding-block: clamp(2.75rem, 7vw, 5.5rem);
 }
 
 .hero {
@@ -131,29 +138,95 @@ main:not(.chapter-main) {
   text-decoration: none;
 }
 
-.status-card {
+.chapter-catalogue {
+  margin-top: clamp(4rem, 9vw, 7rem);
+  scroll-margin-top: 2rem;
+}
+
+.section-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 2rem;
+  margin-bottom: 1.5rem;
+}
+
+.section-heading .eyebrow {
+  margin-bottom: 0.6rem;
+}
+
+.section-heading h2 {
+  margin: 0;
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  letter-spacing: -0.03em;
+}
+
+.catalogue-summary {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.chapter-cards {
   display: grid;
-  gap: 0.35rem;
-  max-width: 420px;
-  margin-top: 4rem;
-  padding: 1.25rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chapter-cards li {
+  min-width: 0;
+}
+
+.chapter-cards a {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 1.35rem;
   border: 1px solid var(--line);
   border-radius: 0.5rem;
-  background: #fff;
+  background: var(--paper);
+  text-decoration: none;
+  transition: border-color 160ms ease, transform 160ms ease;
 }
 
-.status-card span {
-  color: var(--muted);
-  font-size: 0.85rem;
+.chapter-cards a:hover {
+  border-color: #98afa5;
+  transform: translateY(-2px);
 }
 
-.status-card p,
+.chapter-card__module {
+  color: var(--orange);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.76rem;
+  font-weight: 780;
+  letter-spacing: 0.08em;
+}
+
+.chapter-cards h3 {
+  margin: 0.75rem 0;
+  font-size: 1.12rem;
+  line-height: 1.45;
+}
+
+.chapter-cards p {
+  margin: 0 0 1.25rem;
+  color: #52645f;
+  font-size: 0.9rem;
+  line-height: 1.65;
+}
+
+.chapter-card__action {
+  margin-top: auto;
+  color: var(--green);
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
 footer {
   color: var(--muted);
-}
-
-.status-card p {
-  margin: 0;
 }
 
 footer {
@@ -700,14 +773,17 @@ footer {
 }
 
 @media (max-width: 560px) {
-  .site-header,
+  .site-header {
+    padding-block: 1rem;
+  }
+
+  .site-header nav {
+    gap: 0.75rem;
+  }
+
   .actions {
     align-items: flex-start;
     flex-direction: column;
-  }
-
-  .site-header {
-    padding-block: 1rem;
   }
 
   .chapter {
@@ -734,6 +810,24 @@ footer {
 
   .chapter-pagination__next {
     grid-column: 1;
+  }
+}
+
+@media (max-width: 760px) {
+  .section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .chapter-cards {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (min-width: 761px) and (max-width: 980px) {
+  .chapter-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
