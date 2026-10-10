@@ -25,6 +25,7 @@
 | 教程写作 | `skills/source-dive-writing/` + M01 Golden Chapter |
 | 技术图 | `skills/technical-diagramming/` |
 | Git / 分支 / PR 流程 | `skills/repository-workflow/` |
+| CI / GitHub Pages 部署 | `.github/WORKFLOWS.md` |
 | 已有证据 | `research/` |
 | 上游版本 | `sources/` |
 | 站点实现 | `site/` |

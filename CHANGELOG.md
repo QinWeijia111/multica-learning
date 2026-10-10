@@ -20,3 +20,4 @@ Reference: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 
 - 章节生产改为一个 Parent Chapter Issue、共享章节分支和 canonical Draft PR 上的连续交接；研究、写作、审查、修复及合并后投影状态在同一 PR 交付，最终只由人类合并一次且无需正常的 post-merge reconciliation PR。
+- 清理仓库与公开首页的呈现：恢复根 README 的 GitHub 展示优先级，并让首页章节目录、进度摘要、首章入口、导航与站点图标反映实际发布内容。
