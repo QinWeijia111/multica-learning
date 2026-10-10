@@ -22,10 +22,11 @@ Leader 收到 `完成下一个章节` 后必须：
 
 1. 读取仓库 `AGENTS.md`；
 2. 读取 `ROADMAP.md` 的 `Current Focus`，从仓库状态而不是旧聊天解析下一项允许动作；
-3. 若目标章节同时是 Production `NEXT` 与 Architecture `NEAR_TERM_FROZEN`，读取 `book/BOOK_ARCHITECTURE.md`，建立或确认符合 `book/CHAPTER_CONTRACT.md` 的 Chapter Contract；
-4. 确认 / 建立 Parent Chapter Issue，并在该 Parent Issue 中 mention 唯一合适成员来路由下一阶段；
-5. 若状态是 `EDITORIAL_REVIEW_REQUIRED`，停止并请求人类课程决定；
-6. 永不自主选择 `PLANNED / PROVISIONAL` 章节。
+3. 若目标章节同时是 Production `NEXT` 与 Architecture `NEAR_TERM_FROZEN`，读取 `book/BOOK_ARCHITECTURE.md` 与可复用模板 `book/CHAPTER_CONTRACT.md`；
+4. 按模板建立或确认 `book/contracts/<MODULE>.md`，禁止原地填写模板；该具体 Contract 是后续源码研究、教程写作与技术评审共同使用的单章责任权威；
+5. 确认 / 建立 Parent Chapter Issue，并在该 Parent Issue 中 mention 唯一合适成员来路由下一阶段；
+6. 若状态是 `EDITORIAL_REVIEW_REQUIRED`，停止并请求人类课程决定；
+7. 永不自主选择 `PLANNED / PROVISIONAL` 章节。
 
 当前仓库状态应解析到 M03，但该事实由 `ROADMAP.md` 拥有；本协议不复制当前章节状态。
 
@@ -35,7 +36,7 @@ Leader 收到 `完成下一个章节` 后必须：
 Human: 完成下一个章节
   → Leader reads AGENTS + ROADMAP
   → resolve NEXT / NEAR_TERM_FROZEN chapter
-  → confirm Chapter Contract + Parent Chapter Issue
+  → instantiate / confirm book/contracts/<MODULE>.md + Parent Chapter Issue
   → Source Analyst: shared branch + research + canonical Draft PR
   → STAGE_COMPLETE / SOURCE_RESEARCH
   → Tutorial Writer: same branch + same PR
@@ -147,6 +148,7 @@ Multica Parent Issue 可以因集成尚未发生而保持 `in_review`。两种�
 - `AGENTS.md`
 - `book/BOOK_ARCHITECTURE.md`
 - `book/CHAPTER_CONTRACT.md`
+- `book/contracts/<MODULE>.md`
 - `book/LEARNING_SQUAD.md`
 - `sources/*`
 
@@ -156,7 +158,7 @@ Multica Parent Issue 可以因集成尚未发生而保持 `in_review`。两种�
 - README 只在项目身份、公开能力、高层进度、结构、onboarding 或导航发生实质变化时更新；
 - AGENTS 只在路由或操作规则变化时更新；
 - Book Architecture 只在获批的 split / merge、Part 顺序、Reader Question 或 architecture status 变化时更新；
-- Chapter Contract 的非结构性澄清可在章内完成，Reader Question、章节边界、Part、split / merge 仍需人类批准；
+- 具体 `book/contracts/<MODULE>.md` 的非结构性澄清可在章内完成，Reader Question、章节边界、Part、split / merge 仍需人类批准；可复用模板 `book/CHAPTER_CONTRACT.md` 不得被具体章节内容覆盖；
 - 新上游 commit 的完整 SHA 写入研究产物和设计好的章节 metadata / source registry，不覆盖其他章节基线。
 
 ## Reviewer `PASS` 后的 Leader 清单

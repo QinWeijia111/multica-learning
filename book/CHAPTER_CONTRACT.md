@@ -1,6 +1,8 @@
 # Chapter Contract
 
-在广泛源码研究开始前填写此契约。它用读者问题锁定章节责任，但不预填未经验证的实现结论；研究发现可以细化内部结构，架构级变更遵循 `BOOK_ARCHITECTURE.md` 的审批规则。
+本文件是可复用模板，不是任何具体章节的 Contract。在广泛源码研究开始前，必须把本模板实例化为 `book/contracts/<MODULE>.md`（例如 `book/contracts/M03.md`），并在该文件中填写章节契约；**禁止原地填写或用具体章节内容替换本模板**。
+
+具体章节的研究、写作与评审始终以对应的 `book/contracts/<MODULE>.md` 为单章责任权威。契约用读者问题锁定章节责任，但不预填未经验证的实现结论；研究发现可以细化内部结构，架构级变更遵循 `BOOK_ARCHITECTURE.md` 的审批规则。
 
 ## Identity
 

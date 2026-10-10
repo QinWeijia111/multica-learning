@@ -14,6 +14,7 @@ Reference: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - 建立 Book Architecture 与滚动课程规则，定义 M01–M19 的知识边界和人类课程 gate。
 - 建立 Learning Squad 的角色边界、证据 gate、`FULL_AUDIT` / `FOCUSED_DELTA` 评审模式与顺序路由协议。
 - 完成 M02 产品对象 / 源码对象模型的源码研究与中文教程。
+- 新增 M03 Control Plane / Execution Plane 中文教程与图示证据，解释耐久协调、本地执行、Runtime / Daemon、代码位置与凭据边界。
 - 新增 `ROADMAP.md` 和仓库文档责任模型，使当前阶段、下一动作与历史变化各有唯一权威来源。
 
 ### Changed
