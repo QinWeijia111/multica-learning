@@ -18,7 +18,8 @@
 | --- | --- |
 | 当前阶段 / 下一项工作 | `ROADMAP.md` |
 | 全书课程结构 | `book/BOOK_ARCHITECTURE.md` |
-| 新章节责任 | `book/CHAPTER_CONTRACT.md` |
+| 新章节 Contract 模板 | `book/CHAPTER_CONTRACT.md` |
+| 已实例化的单章责任 | `book/contracts/<MODULE>.md` |
 | Squad 协作流程 | `book/LEARNING_SQUAD.md` |
 | 源码研究 | `skills/multica-source-verification/` |
 | 教程写作 | `skills/source-dive-writing/` + M01 Golden Chapter |
@@ -44,7 +45,8 @@
 
 - 当前工作状态：`ROADMAP.md`
 - 课程结构与排序理由：`book/BOOK_ARCHITECTURE.md`
-- 单章责任：`book/CHAPTER_CONTRACT.md`
+- 单章 Contract 模板：`book/CHAPTER_CONTRACT.md`
+- 已实例化的单章责任：`book/contracts/<MODULE>.md`
 - Squad 协作：`book/LEARNING_SQUAD.md`
 - 仓库路由：`AGENTS.md`
 - 具体工作方法：`skills/`
