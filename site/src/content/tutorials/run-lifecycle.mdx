@@ -12,7 +12,7 @@ researchArtifact: research/run-lifecycle/research-note.md
 
 ## Multica 把工作交给本地编码工具
 
-如果你用过 Codex，可以先从一个熟悉的场景开始：打开代码仓库，告诉它“修复登录失败的问题”，让它检查文件、修改代码，再查看它的输出。这个过程里，你直接把工作交给了一个编码工具，也直接观察它的执行结果。
+Codex 是一种 Coding Agent；如果你还没用过这类工具，可以把它理解成能读取仓库、修改文件并反馈结果的 AI 编码工具。先从一个具体场景开始：打开代码仓库，告诉 Codex“修复登录失败的问题”，让它检查文件、修改代码，再查看它的输出。这个过程里，你直接把工作交给了一个编码工具，也直接观察它的执行结果。
 
 Multica 在这类编码工具外面增加了一层工作组织与执行协调。你可以把要做的事记录下来，交给配置好的 AI 协作者，再由系统把这次工作送到对应的执行环境，并记录执行过程和结果。**Multica 负责组织、分配和跟踪工作；Codex 等 Coding Agent 负责实际编码。** 理解这层分工，是读懂后面源码的起点。
 
@@ -37,20 +37,27 @@ Multica 在这类编码工具外面增加了一层工作组织与执行协调。
 
 下面是本章的**教学架构图**。中文标签描述职责，不代表源码里存在同名类型；箭头表示主要交互，也不要求 Server 与数据库部署在两台不同机器上。
 
-<figure>
+<figure data-wide>
 
 ```mermaid
 flowchart TD
     human["人 / Web<br/>分配工作、查看结果"]
-    server["Multica Server<br/>协调与持久状态"]
-    state[("PostgreSQL<br/>记住工作与生命周期")]
-    daemon["Local Daemon<br/>本地执行"]
-    adapter["Provider Adapter<br/>适配具体工具"]
-    agent["Coding Agent<br/>例如 Codex"]
-    files[("本地代码与文件")]
+    subgraph control["Server / 持久状态侧"]
+        server["Multica Server<br/>协调与持久状态"]
+        state[("PostgreSQL<br/>记住工作与生命周期")]
+        runtime["Runtime 记录<br/>执行目标与 provider 配置"]
+    end
+    subgraph local["本地机器"]
+        daemon["Local Daemon<br/>本地执行"]
+        adapter["Provider Adapter<br/>适配具体工具"]
+        agent["Coding Agent<br/>例如 Codex"]
+        files[("本地代码与文件")]
+    end
 
     human -->|分配 Issue| server
     server <-->|读写可靠事实| state
+    state ---|保存执行资源记录| runtime
+    runtime -.->|由本机 Daemon 兑现| daemon
     server -->|提醒有工作| daemon
     daemon -->|请求领取| server
     daemon -->|准备工作环境| files
@@ -60,7 +67,7 @@ flowchart TD
     daemon -->|回传过程与结果| server
 ```
 
-<figcaption><strong>TEACHING · 最小架构图：</strong>Server 负责协调与持久状态；Daemon 和 Coding Agent 在本地机器上完成真正执行。读图时先记住这条边界，不必记函数名。</figcaption>
+<figcaption><strong>TEACHING · 最小架构图：</strong>Server 负责协调与持久状态；Runtime 节点表示执行目标与工具配置的记录，虚线表示这份能力由本机 Daemon 兑现；Daemon 和 Coding Agent 在本地机器上完成真正执行。</figcaption>
 
 </figure>
 
@@ -70,11 +77,11 @@ flowchart TD
 
 **PostgreSQL 保存跨越网络消息的事实。** “有一项工作在等待”“这项工作已经被领取”“这次执行已经结束”都需要留下记录。数据库里的任务记录与发给 Mac 的通知是两样东西：通知是一个即时提醒，任务记录则让 Server 在提醒没有送达时，仍能知道工作还在等待。
 
-**Daemon 把服务端的安排接到本地资源上。** Server 上有工作记录，不意味着 Codex 已经启动。Daemon 需要先领取任务，再找到它对应的 runtime/provider 配置，准备或复用仓库与工作目录，然后调用本地工具。图中的 provider adapter 是对接具体 Coding Agent 的适配层：不同工具的启动方式和通信方式不同，这一层负责处理这些差异。
+**Daemon 把服务端的安排接到本地资源上。** Server 上有工作记录，不意味着 Codex 已经启动。Daemon 需要先领取任务，再找到它对应的执行目标与工具配置，准备或复用仓库与工作目录，然后调用本地工具。图中的 provider adapter 是对接具体 Coding Agent 的适配层：不同工具的启动方式和通信方式不同，这一层负责处理这些差异。
 
 **Codex 负责实际编码，Daemon 负责接回输出。** Codex 在准备好的本地工作环境中读取、修改文件，产生消息和执行结果；Daemon 把这些信息回传给 Server。这样，分配工作和执行工作虽然发生在不同位置，仍然围绕同一次任务衔接起来。
 
-Runtime 在图里没有单独画成一个运行进程，因为它提供的是执行目标与配置；Daemon 才是执行侧正在运行的进程。本例中 Agent 的 runtime 绑定把这次工作指向 Mac 上的 Codex 能力，Daemon 再负责兑现这份能力。
+图中的 Runtime 记录位于 Server / 持久状态侧，描述执行目标与工具配置，其中 provider 配置说明使用哪种编码工具。本例中 Agent 的 Runtime 绑定把这次工作指向 Mac 上的 Codex 能力。虚线表达配置与实际执行的对应关系，不表示一次消息调用：Runtime 是注册与配置记录，Daemon 是本机运行的进程，由它兑现这份能力。
 
 ## 跟着“修复登录问题”走完一次执行
 
@@ -82,9 +89,9 @@ Runtime 在图里没有单独画成一个运行进程，因为它提供的是执
 
 ### 1. 分配工作，留下待执行记录
 
-你把“修复登录失败的问题”这个 Issue 分配给 Agent，并选择启动。Server 检查这次分配是否满足执行条件。如果满足，就保存一项待执行任务，记录它来自哪个 Issue、交给哪个 Agent，以及目标 runtime。
+你把“修复登录失败的问题”这个 Issue 分配给 Agent，并选择启动。Server 检查这次分配是否满足执行条件。如果满足，就保存一项待执行任务，记录它来自哪个 Issue、交给哪个 Agent，以及目标执行资源。
 
-到这里，“需要执行”已经成为 Server 能查到的记录，但 Mac 还没有开始修改代码。任务的初始状态是 `queued`，可以理解为“已排队，等待符合条件的执行侧领取”。目标 runtime 来自 Agent 的绑定配置，因此这项任务不是交给任意在线电脑抢着做。
+到这里，“需要执行”已经成为 Server 能查到的记录，但 Mac 还没有开始修改代码。这时任务处于“等待领取”的阶段。目标执行资源来自 Agent 的绑定配置，所以这次工作已经指向本例的 Mac。
 
 ### 2. 提醒 Mac，等待 Daemon 检查
 
@@ -92,19 +99,19 @@ Runtime 在图里没有单独画成一个运行进程，因为它提供的是执
 
 ### 3. 先留出本地容量，再请求领取
 
-Daemon 同时能执行的工作有限。它先留出一个本地执行位置，再向 Server 请求领取任务；Server 检查任务和执行资源是否符合条件，成功后把任务状态写为 `dispatched`，并返回领取结果。
+Daemon 同时能执行的工作有限。它先留出一个本地执行位置，再向 Server 请求领取任务；Server 检查任务和执行资源是否符合条件，成功后记录任务“已领取”，并返回领取结果。
 
-“领取”表示 Server 已确认这次执行权。Daemon 如果没有领到工作，就归还刚才预留的本地位置；如果领取成功，才继续准备这次执行。这个先预留、再领取的顺序来自本章研究的普通 `runBatchPoller` 路径；下面的旅程与教学伪代码都以这条路径为范围。
+“领取”表示 Server 已确认这次执行权。Daemon 如果没有领到工作，就归还刚才预留的本地位置；如果领取成功，才继续准备这次执行。在本章研究的普通执行路径中，Daemon 先确认自己还有本地执行容量，再请求领取工作；下面的旅程与教学伪代码都以这条路径为范围。
 
 ### 4. 准备环境，确认开始，再启动 Codex
 
-Daemon 根据任务的 runtime 配置找到具体工具，准备或复用本地仓库、工作目录和执行环境。准备完成后，它向 Server 请求确认开始，Server 把任务记为 `running`。随后 Daemon 通过 provider 适配层启动 Codex，Codex 才开始处理“修复登录问题”这件工作。
+Daemon 根据任务的执行配置找到具体工具，准备或复用本地仓库、工作目录和执行环境。准备完成后，它向 Server 请求确认开始，Server 记录这次执行已经开始。确认成功后，Daemon 通过工具适配层启动 Codex，Codex 才开始处理“修复登录问题”这件工作。
 
-这解释了两个容易误读的时刻：`dispatched` 表示已经领取，`running` 表示准备完成并成功确认开始。它们都比“收到提醒”更靠后，不能把这三个时刻混成一个。
+“已领取”之后还要准备环境，再由 Server 确认开始，随后才尝试启动工具。这几个步骤都发生在“收到提醒”之后，各自完成不同的工作。
 
 ### 5. 回传输出，记录这一次的结果
 
-Codex 执行时会产生消息与结果。Daemon 在执行过程中回传消息和进度，结束后再报告成功或失败，Server 保存这次任务的终态。于是最初的 Issue 分配，经过服务端记录、本地领取与工具调用，形成了一次有起点、过程和结果的执行。
+Codex 执行时会产生消息与结果。Daemon 在执行过程中回传消息和进度，结束后再报告成功或失败，Server 保存这次执行的最终结果。于是最初的 Issue 分配，经过服务端记录、本地领取与工具调用，形成了一次有起点、过程和结果的执行。
 
 这里的终点是“一次执行结束”。登录问题是否真正解决、修改是否通过验收，还属于 Issue 的协作流程；我们会在后面单独解释这两种状态的关系。
 
@@ -123,21 +130,22 @@ sequenceDiagram
     H->>S: 分配 Issue
     S->>DB: 保存待执行工作
     S-->>D: 提醒有新工作
-    D->>D: 预留本地执行 slot
+    D->>D: 留出本地执行容量
     D->>S: 请求领取
-    S->>DB: 原子确认执行权
+    S->>DB: 确认执行权，记录已领取
     S-->>D: 返回已领取任务
     D->>D: 准备 / 复用执行环境
-    D->>S: 环境就绪，请求 start
-    S->>DB: 写入 running
-    D->>A: 通过 provider 启动
+    D->>S: 环境就绪，请求确认开始
+    S->>DB: 记录执行已开始
+    S-->>D: 确认开始成功
+    D->>A: 通过工具适配层启动
     A->>A: 修改本地代码与文件
     A-->>D: 输出消息与结果
-    D-->>S: 回传过程与终态
-    S->>DB: 保存生命周期结果
+    D-->>S: 回传过程与最终结果
+    S->>DB: 记录执行结束与结果
 ```
 
-<figcaption><strong>TEACHING · 一次执行的完整接力：</strong>Server 侧保存协调事实，本地侧完成真实执行；本章研究的普通 <code>runBatchPoller</code> 路径先预留本地 slot，再请求领取，claim 成功后才准备环境。图折叠了具体 API、函数和兼容分支。</figcaption>
+<figcaption><strong>TEACHING · 一次执行的完整接力：</strong>Server 侧记录“等待领取、已领取、执行已开始、执行结束”，本地侧完成环境准备与工具调用；本章研究的普通执行路径先留出本地容量，再请求领取，领取成功后才准备环境。图折叠了具体 API、函数和兼容分支。</figcaption>
 
 </figure>
 
