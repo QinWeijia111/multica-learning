@@ -3,9 +3,9 @@
 - **State semantics**：本文件描述 M04 canonical 分支上的当前工作状态；合并前，`main` 仍保持上一滚动窗口完成后的权威状态
 - **Current phase**：Phase 9B.1 — repository-driven chapter production
 - **Current Part**：Part II — 一次 Run 如何被调度
-- **Current focus**：M04 `SOURCE_RESEARCH` 已完成，准备进入 `TUTORIAL_PRODUCTION`
+- **Current focus**：M04 `TUTORIAL_PRODUCTION` 已完成，准备进入 `FULL_AUDIT`
 - **Completed chapter**：M03 — 为什么 Server 不直接运行 Agent？——Control Plane 与 Execution Plane（`COMPLETE`）
-- **Next allowed action**：Tutorial Writer 在同一 canonical 分支 / PR 使用 `book/contracts/M04.md` 与 M04 research note 生产教程，不重开分支或 PR
+- **Next allowed action**：Technical Reviewer 在同一 canonical 分支 / PR 对 M04 执行 `FULL_AUDIT`
 - **Next human gate**：本阶段无额外 evidence gate；M04 完成并经 Reviewer `PASS` 后按已批准窗口把 M05 设为 `NEXT`
 
 本文件是“下一步做什么”的唯一权威来源。聊天记录、旧 Issue、PR 描述和 Book Architecture 中的章节顺序不能替代这里的当前生产状态。
@@ -26,7 +26,7 @@ Architecture status 与 Production status 是两条独立轴：
 | M01 | 从 Issue 分配到本地 Codex 执行 | I | `GOLDEN` | `COMPLETE` | 作为 Golden Chapter 保持可追溯 |
 | M02 | Multica 里到底有哪些“东西”？——从产品对象到源码对象 | I | `NEAR_TERM_FROZEN` | `COMPLETE` | 无；已完成研究与教程 |
 | M03 | 为什么 Server 不直接运行 Agent？——Control Plane 与 Execution Plane | I | `NEAR_TERM_FROZEN` | `COMPLETE` | 研究、教程与审查已完成；随 canonical PR #23 合并成为 `main` 的权威状态 |
-| M04 | Agent 为什么开始工作？——四类 Trigger 如何汇入执行主线 | II | `NEAR_TERM_FROZEN` | `IN_WRITING` | Source research ready；同一 canonical PR 进入教程生产 |
+| M04 | Agent 为什么开始工作？——四类 Trigger 如何汇入执行主线 | II | `NEAR_TERM_FROZEN` | `IN_REVIEW` | 教程与图示已完成；同一 canonical PR 进入 `FULL_AUDIT` |
 | M05 | Run 在源码里究竟是什么？——TaskService 与 Durable Task | II | `NEAR_TERM_FROZEN` | `NOT_STARTED` | 已冻结但不启动；等待 M04 完成与 Reviewer `PASS` |
 | M06 | 到底是谁获得了任务？——Wakeup、Polling、Claim 与并发控制 | II | `NEAR_TERM_FROZEN` | `NOT_STARTED` | 已冻结但不启动；等待前序章节推进 |
 | M07 | 一台电脑为什么能成为 Runtime？——Daemon、Runtime 与 Heartbeat | III | `PLANNED / PROVISIONAL` | `NOT_STARTED` | 等待未来滚动课程复核 |
