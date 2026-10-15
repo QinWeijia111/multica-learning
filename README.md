@@ -15,7 +15,8 @@ Multica 横跨 Web 产品、持久化调度、本地 Daemon、Coding Agent provi
 - M01 Golden Chapter：已完成；
 - M02 产品对象 / 源码对象模型：已完成；
 - M03 Control Plane 与 Execution Plane：已完成；
-- 下一滚动冻结窗口：等待人类课程复核，尚未选择或启动下一章。
+- M04 四类 Trigger 如何汇入执行主线：已完成；
+- M05 TaskService 与 Durable Task：下一章；M06 已随当前滚动窗口冻结，但尚未启动。
 
 详细生产状态、下一项允许动作与人类 gate 只在 [`ROADMAP.md`](ROADMAP.md) 维护。
 

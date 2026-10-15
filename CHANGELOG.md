@@ -15,8 +15,8 @@ Reference: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - 建立 Learning Squad 的角色边界、证据 gate、`FULL_AUDIT` / `FOCUSED_DELTA` 评审模式与顺序路由协议。
 - 完成 M02 产品对象 / 源码对象模型的源码研究与中文教程。
 - 新增 M03 Control Plane / Execution Plane 中文教程与图示证据，解释耐久协调、本地执行、Runtime / Daemon、代码位置与凭据边界。
-- 冻结 M04–M06 为下一滚动窗口，并完成 M04 四类 Trigger 汇入执行主线的源码研究与具体 Chapter Contract。
-- 新增 M04 四类 Trigger 中文教程与图示证据，区分入口路由、来源锚点、共同队列、Runtime wakeup 与后续 claim 边界。
+- 冻结 M04–M06 为下一滚动窗口，并建立 M04 四类 Trigger 汇入执行主线的源码研究与具体 Chapter Contract。
+- 完成 M04 四类 Trigger 中文教程与图示证据，区分入口路由、来源锚点、共同队列、Runtime wakeup 与后续 claim 边界；下一章推进为 M05。
 - 新增 `ROADMAP.md` 和仓库文档责任模型，使当前阶段、下一动作与历史变化各有唯一权威来源。
 
 ### Changed
