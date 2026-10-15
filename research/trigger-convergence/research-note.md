@@ -175,7 +175,7 @@ Chat 的消息与 owning task 在同一事务中绑定，通知发生在 commit 
 
 ```text
 manual / schedule / webhook dispatch
-  → AutopilotService.DispatchAutopilot* 
+  → AutopilotService.DispatchAutopilot*
   → CreateAutopilotRun(source, trigger_id, payload, planned_at...)
   → execution_mode switch
     create_issue:
