@@ -17,7 +17,7 @@ Multica 横跨 Web 产品、持久化调度、本地 Daemon、Coding Agent provi
 - M03 Control Plane 与 Execution Plane：已完成；
 - M04 四类 Trigger 如何汇入执行主线：已完成；
 - M05 TaskService 与 Durable Task：已完成；
-- M06 Wakeup、Polling、Claim 与并发控制：教程与图示已完成，等待技术审查。
+- M06 Wakeup、Polling、Claim 与并发控制：已完成；下一滚动窗口等待人类课程复核。
 
 详细生产状态、下一项允许动作与人类 gate 只在 [`ROADMAP.md`](ROADMAP.md) 维护。
 
