@@ -1,12 +1,12 @@
 # Current Focus
 
-- **State semantics**：本文件描述 canonical PR #27 合并后的投影状态；PR 合并前，`main` 的权威状态尚未改变
+- **State semantics**：本文件记录当前分支中的 M06 生产工作状态；M06 的最终完成态只会随其 canonical PR 合并成为 `main` 权威状态
 - **Current phase**：Phase 9B.1 — repository-driven chapter production
 - **Current Part**：Part II — 一次 Run 如何被调度
-- **Current focus**：M06 — 到底是谁获得了任务？——Wakeup、Polling、Claim 与并发控制（`NEXT`）
+- **Current focus**：M06 — 到底是谁获得了任务？——Wakeup、Polling、Claim 与并发控制（`IN_RESEARCH`）
 - **Completed chapter**：M05 — Run 在源码里究竟是什么？——TaskService 与 Durable Task（`COMPLETE`）
-- **Next allowed action**：PR #27 经人类合并后，为 M06 建立 / 确认具体 Chapter Contract、Parent Chapter Issue 与新的 canonical 分支 / Draft PR，并启动 `SOURCE_RESEARCH`
-- **Next human gate**：PR #27 的唯一人类 merge；M06 已在获批的 M04–M06 滚动窗口内，无需再次提升 Architecture status
+- **Next allowed action**：在 NAVI-32 的共享章节分支与 canonical Draft PR 上完成 M06 `SOURCE_RESEARCH`，随后按结构化 handoff 进入 `TUTORIAL_PRODUCTION`
+- **Next human gate**：M06 经 Reviewer `PASS` 与最终集成核验后的唯一人类 merge；M06 已在获批的 M04–M06 滚动窗口内，无需再次提升 Architecture status
 
 本文件是“下一步做什么”的唯一权威来源。聊天记录、旧 Issue、PR 描述和 Book Architecture 中的章节顺序不能替代这里的当前生产状态。
 
@@ -28,7 +28,7 @@ Architecture status 与 Production status 是两条独立轴：
 | M03 | 为什么 Server 不直接运行 Agent？——Control Plane 与 Execution Plane | I | `NEAR_TERM_FROZEN` | `COMPLETE` | 研究、教程与审查已完成；随 canonical PR #23 合并成为 `main` 的权威状态 |
 | M04 | Agent 为什么开始工作？——四类 Trigger 如何汇入执行主线 | II | `NEAR_TERM_FROZEN` | `COMPLETE` | 研究、教程、图示与审查已完成；随 canonical PR #26 合并成为 `main` 的权威状态 |
 | M05 | Run 在源码里究竟是什么？——TaskService 与 Durable Task | II | `NEAR_TERM_FROZEN` | `COMPLETE` | 研究、教程、图示与审查已完成；随 canonical PR #27 合并成为 `main` 的权威状态 |
-| M06 | 到底是谁获得了任务？——Wakeup、Polling、Claim 与并发控制 | II | `NEAR_TERM_FROZEN` | `NEXT` | PR #27 合并后启动下一章节的 Contract 与 source research |
+| M06 | 到底是谁获得了任务？——Wakeup、Polling、Claim 与并发控制 | II | `NEAR_TERM_FROZEN` | `IN_RESEARCH` | 在 NAVI-32 canonical Draft PR 完成 source research 后进入教程生产 |
 | M07 | 一台电脑为什么能成为 Runtime？——Daemon、Runtime 与 Heartbeat | III | `PLANNED / PROVISIONAL` | `NOT_STARTED` | 等待未来滚动课程复核 |
 | M08 | Agent 在哪里工作？——Execution Environment、Workdir 与本地资源 | III | `PLANNED / PROVISIONAL` | `NOT_STARTED` | 等待未来滚动课程复核 |
 | M09 | Coding Agent 最终到底“看见”了什么？——Context Assembly | III | `PLANNED / PROVISIONAL` | `NOT_STARTED` | 等待未来滚动课程复核 |

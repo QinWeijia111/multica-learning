@@ -19,6 +19,7 @@ Reference: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - 完成 M04 四类 Trigger 中文教程与图示证据，区分入口路由、来源锚点、共同队列、Runtime wakeup 与后续 claim 边界；下一章推进为 M05。
 - 建立 M05 durable-task Chapter Contract 与源码研究基线，验证产品 Run 到 `TaskService` / `agent_task_queue` 的映射、状态边界及 retry / rerun 血缘。
 - 新增 M05 durable-task 中文教程与图示证据，解释 Run 的耐久身份、终态 CAS、execution history，以及自动 retry / 人工 rerun 的独立血缘。
+- 建立 M06 wakeup、polling、claim 与并发控制的具体 Chapter Contract 和源码研究基线，验证提示与所有权边界、machine / Agent 两层容量、原子 claim 及 lost-response generation recovery。
 - 新增 `ROADMAP.md` 和仓库文档责任模型，使当前阶段、下一动作与历史变化各有唯一权威来源。
 
 ### Changed
