@@ -1,12 +1,12 @@
 # Current Focus
 
-- **State semantics**：`main` 已包含 M04 的完成态；本文件在 NAVI-31 canonical PR 分支上记录 M05 的当前生产工作状态
+- **State semantics**：本文件描述 canonical PR #27 合并后的投影状态；PR 合并前，`main` 的权威状态尚未改变
 - **Current phase**：Phase 9B.1 — repository-driven chapter production
 - **Current Part**：Part II — 一次 Run 如何被调度
-- **Current focus**：M05 `TUTORIAL_PRODUCTION` 已完成，准备进入 `FULL_AUDIT`
-- **Completed chapter**：M04 — Agent 为什么开始工作？——四类 Trigger 如何汇入执行主线（`COMPLETE`）
-- **Next allowed action**：Technical Reviewer 在同一 canonical 分支 / PR 对 M05 执行 `FULL_AUDIT`
-- **Next human gate**：M05 canonical PR 在研究、写作、技术审查与最终集成完成后的唯一人类 merge；当前无需中间 merge 或额外 evidence gate
+- **Current focus**：M06 — 到底是谁获得了任务？——Wakeup、Polling、Claim 与并发控制（`NEXT`）
+- **Completed chapter**：M05 — Run 在源码里究竟是什么？——TaskService 与 Durable Task（`COMPLETE`）
+- **Next allowed action**：PR #27 经人类合并后，为 M06 建立 / 确认具体 Chapter Contract、Parent Chapter Issue 与新的 canonical 分支 / Draft PR，并启动 `SOURCE_RESEARCH`
+- **Next human gate**：PR #27 的唯一人类 merge；M06 已在获批的 M04–M06 滚动窗口内，无需再次提升 Architecture status
 
 本文件是“下一步做什么”的唯一权威来源。聊天记录、旧 Issue、PR 描述和 Book Architecture 中的章节顺序不能替代这里的当前生产状态。
 
@@ -27,8 +27,8 @@ Architecture status 与 Production status 是两条独立轴：
 | M02 | Multica 里到底有哪些“东西”？——从产品对象到源码对象 | I | `NEAR_TERM_FROZEN` | `COMPLETE` | 无；已完成研究与教程 |
 | M03 | 为什么 Server 不直接运行 Agent？——Control Plane 与 Execution Plane | I | `NEAR_TERM_FROZEN` | `COMPLETE` | 研究、教程与审查已完成；随 canonical PR #23 合并成为 `main` 的权威状态 |
 | M04 | Agent 为什么开始工作？——四类 Trigger 如何汇入执行主线 | II | `NEAR_TERM_FROZEN` | `COMPLETE` | 研究、教程、图示与审查已完成；随 canonical PR #26 合并成为 `main` 的权威状态 |
-| M05 | Run 在源码里究竟是什么？——TaskService 与 Durable Task | II | `NEAR_TERM_FROZEN` | `IN_REVIEW` | 教程与图示已完成；同一 canonical PR 进入 `FULL_AUDIT` |
-| M06 | 到底是谁获得了任务？——Wakeup、Polling、Claim 与并发控制 | II | `NEAR_TERM_FROZEN` | `NOT_STARTED` | 已冻结但不启动；等待 M05 完成与 Reviewer `PASS` |
+| M05 | Run 在源码里究竟是什么？——TaskService 与 Durable Task | II | `NEAR_TERM_FROZEN` | `COMPLETE` | 研究、教程、图示与审查已完成；随 canonical PR #27 合并成为 `main` 的权威状态 |
+| M06 | 到底是谁获得了任务？——Wakeup、Polling、Claim 与并发控制 | II | `NEAR_TERM_FROZEN` | `NEXT` | PR #27 合并后启动下一章节的 Contract 与 source research |
 | M07 | 一台电脑为什么能成为 Runtime？——Daemon、Runtime 与 Heartbeat | III | `PLANNED / PROVISIONAL` | `NOT_STARTED` | 等待未来滚动课程复核 |
 | M08 | Agent 在哪里工作？——Execution Environment、Workdir 与本地资源 | III | `PLANNED / PROVISIONAL` | `NOT_STARTED` | 等待未来滚动课程复核 |
 | M09 | Coding Agent 最终到底“看见”了什么？——Context Assembly | III | `PLANNED / PROVISIONAL` | `NOT_STARTED` | 等待未来滚动课程复核 |
@@ -45,13 +45,13 @@ Architecture status 与 Production status 是两条独立轴：
 
 ## 滚动课程规则
 
-冻结窗口耗尽后，Leader 不得按编号自动开始 provisional 章节。人类课程负责人已在 NAVI-30 批准 M04–M06 为当前滚动窗口；M04 完成后，M05 按批准顺序成为 `NEXT`，M06 保持 `NOT_STARTED`，仍须等待 ROADMAP 的前序 gate，不能并行自动开工。
+冻结窗口耗尽后，Leader 不得按编号自动开始 provisional 章节。人类课程负责人已在 NAVI-30 批准 M04–M06 为当前滚动窗口；M05 完成后，M06 按批准顺序成为 `NEXT`。M06 将耗尽当前冻结窗口，完成后必须进入 `EDITORIAL_REVIEW_REQUIRED`，不得自动提升 M07。
 
 ## 非章节工程工作
 
 | 工作流 | 当前状态 | 下一动作 / gate |
 | --- | --- | --- |
-| Repository operating model | `IN_REVIEW` | Phase 9B.1 PR 等待人类审查与合并 |
-| Learning Squad | `IN_REVIEW` | 连续交接协议随 Phase 9B.1 PR 审查；合并后生效 |
+| Repository operating model | `ACTIVE` | 按 Phase 9B.1 协议持续运行；变更需独立审查 |
+| Learning Squad | `ACTIVE` | 按连续交接协议运行；普通章节保持一个 Parent Issue、共享分支与 canonical PR |
 | Upstream watch | `NOT_STARTED` | 本阶段不创建 Weekly Watch；需独立批准 |
 | Publishing / release | `ACTIVE` | `main` 上的站点变更由 GitHub Pages workflow 发布；发布仍需合并后验证 |
