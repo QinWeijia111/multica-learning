@@ -187,16 +187,16 @@ Multica 的做法是：保留 failed parent，在同一事务中创建新的 ret
 <figure>
 
 ```mermaid
-flowchart TD
-    parent["parent Run<br/>attempt = 1 · failed"]
+flowchart BT
+    source["source Run<br/>attempt = 1 · failed"]
     retry["retry child<br/>attempt = 2 · queued / deferred"]
     rerun["manual rerun<br/>direct_human · queued"]
 
-    parent -->|retry_of_task_id<br/>系统继续尝试| retry
-    parent -->|rerun_of_task_id<br/>用户再次执行| rerun
+    retry -->|retry_of_task_id = parent.id| source
+    rerun -->|rerun_of_task_id = source.id| source
 ```
 
-<figcaption><strong>IMPLEMENTATION · 两类血缘：</strong>自动 retry 与人工 rerun 都新增 row，但分别表达系统恢复尝试和新的用户意图；旧终态记录不被覆盖。</figcaption>
+<figcaption><strong>IMPLEMENTATION · 两类血缘：</strong>箭头从新记录指向来源记录，对应字段实际存放在 retry child / manual rerun row 上；两者分别表达系统恢复尝试和新的用户意图，旧终态记录不被覆盖。</figcaption>
 
 </figure>
 

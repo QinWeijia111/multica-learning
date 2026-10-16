@@ -55,18 +55,18 @@
 ### Evidence
 
 - **Node evidence:** `CreateRetryTask` 支持 failed parent 与 attempt + 1 的 queued / deferred child；`enqueueRerunTask` 支持 direct-human queued rerun row。
-- **Edge evidence:** `retry_of_task_id = parent.id` 支持 retry 边；`rerun_of_task_id = selected source task` 支持 rerun 边。Research Note Behavior-first Paths 4–5 支持两者均保留 source row。
+- **Edge evidence:** `CreateRetryTask` 把 `retry_of_task_id = parent.id` 写在新建 child row 上，因此 retry 边由 child 指向 parent；rerun enqueue 把 `rerun_of_task_id = selected source task` 写在新建 rerun row 上，因此 rerun 边由新 row 指向 selected source。Research Note Behavior-first Paths 4–5 支持两者均保留 source row。
 - **Uncertainty preserved:** 图没有画 retry eligibility、backoff、exhaustion 或 session / workdir 复用算法；正文明确这些分别属于 M13 或后续 claim 准备策略。
 
 ### Validation
 
 - [x] **Mermaid render validation:** `npm run build` 成功，Astro / Mermaid 未报告语法错误。
 - [x] **Mobile/readability check:** 三节点纵向分叉简短可读；caption 与相邻两节完整解释两条边。
-- [x] **Exact identifiers:** `attempt`、`retry_of_task_id`、`rerun_of_task_id` 与 `direct_human` 已对照固定基线研究。
+- [x] **Exact identifiers:** `attempt`、`retry_of_task_id`、`rerun_of_task_id` 与 `direct_human` 已对照固定基线研究；两条 lineage pointer 均从保存字段的新 row 指向来源 row。
 - [x] **Text fallback:** 正文分别解释系统恢复尝试与新的用户意图，并说明旧终态记录不覆盖。
 
 ## Reviewer verdict
 
 - **Verdict:** `PASS`
 - **Reviewer:** Tutorial Writer self-check（交付后仍需 Technical Reviewer `FULL_AUDIT`）
-- **Findings / required changes:** None；实现图的节点与边均可回到 Research Note，M06 / M13 与 session / workdir 不确定性未被画成确定关系。
+- **Findings / required changes:** `M05-D1` 已修正：实现图不再把创建方向误标为 lineage pointer 方向；节点与边均可回到 Research Note，M06 / M13 与 session / workdir 不确定性未被画成确定关系。
